@@ -1,0 +1,1 @@
+go into the day's directory and cargo run.
