@@ -6,21 +6,16 @@ use std::fs;
 //      after that special value exists.
 
 fn find_start(s: &str, window_size: usize) -> usize {
-    let mut offset = 0;
-    s.chars()
+    let offset = s
+        .chars()
         .collect::<Vec<char>>()
         .windows(window_size)
-        .take_while(|stuff| {
-            let set = stuff.into_iter().collect::<HashSet<_>>();
-
-            if set.len() != window_size {
-                offset += 1; //is there a better trick for seeing how many things the take_while has consumed?
-                return true;
-            } else {
-                return false;
-            }
+        .enumerate()
+        .find(|(_, stuff)| {
+            stuff.iter().collect::<HashSet<_>>().len() == window_size
         })
-        .for_each(|_| {}); //TODO: what is the bettter way to force the allocation?
+        .map(|(i, _)| i)
+        .unwrap();
     println!("{} {}", s, offset);
     return offset + window_size;
 }
