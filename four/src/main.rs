@@ -1,6 +1,9 @@
 //use itertools::Itertools;
 use std::fs;
 
+//Ah, i should have added these as extension methods to the built-in RangeInclusive
+// neat technique https://fasterthanli.me/series/advent-of-code-2022/part-4
+
 //returns true IFF "me" fully contains "you", but not the opposite
 fn fully_contains(me: &Vec<i32>, you: &Vec<i32>) -> bool {
     return me[0] <= you[0] && me[1] >= you[1];
@@ -11,18 +14,13 @@ fn overlaps_at_all(me: &Vec<i32>, you: &Vec<i32>) -> bool {
     /* things overlap if either the start or end is contained in the other range. */
 
     //i do NOT love the manual +1 because of range's upper-bound exclusivity :(
-    let me_r = std::ops::Range {
-        start: me[0],
-        end: me[1] + 1,
-    };
-    let you_r = std::ops::Range {
-        start: you[0],
-        end: you[1] + 1,
-    };
-    return me_r.contains(&you[0])
-        || me_r.contains(&you[1])
-        || you_r.contains(&me[0])
-        || you_r.contains(&me[1]);
+    let me = std::ops::RangeInclusive::new(me[0], me[1]);
+    let you = std::ops::RangeInclusive::new(you[0], you[1]);
+
+    return me.contains(&you.start())
+        || me.contains(&you.end())
+        || you.contains(&me.start())
+        || you.contains(&me.end());
 }
 
 fn main() {
@@ -35,9 +33,9 @@ fn main() {
                 .map(|elf| {
                     elf.split("-")
                         .map(|s| s.parse::<i32>().unwrap())
-                        .collect::<Vec<i32>>()
+                        .collect::<Vec<i32>>() //should collect_tuple into a pair here, maybe map to range at this point.
                 })
-                .collect::<Vec<Vec<i32>>>()
+                .collect::<Vec<Vec<i32>>>() //again, collect into a tuple or a type
         })
         .map(|elves| {
             let fully_overlapped =
