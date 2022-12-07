@@ -37,9 +37,9 @@ fn main() {
 
     stacks = dbg!(stacks);
 
-    stacks.iter_mut().for_each(|a| a.reverse());
+    stacks.iter_mut().for_each(|a| a.reverse()); //faster than unshifting while building..
 
-    lines.next();
+    lines.next(); //skip blank line
 
     lines.map(|movement| {
         let mut parts = movement.split(" ");
