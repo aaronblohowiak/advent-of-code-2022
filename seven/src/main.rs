@@ -166,7 +166,7 @@ impl Dir {
         return (my_size, dir_sum);
     }
 
-    fn aoc_dir_size_min_above(&self , min_size : usize) -> (usize, usize) {
+    fn aoc_dir_size_min_above(&self, min_size: usize) -> (usize, usize) {
         let mut my_size = 0;
         let mut min_acceptable_so_far = 0;
 
@@ -178,12 +178,14 @@ impl Dir {
             let (kid_size, kid_min_dirsize) = d.aoc_dir_size_min_above(min_size);
             my_size += kid_size;
 
-            if kid_min_dirsize > 0 && (min_acceptable_so_far == 0 || kid_min_dirsize < min_acceptable_so_far) {
+            if kid_min_dirsize > 0
+                && (min_acceptable_so_far == 0 || kid_min_dirsize < min_acceptable_so_far)
+            {
                 min_acceptable_so_far = kid_min_dirsize;
             }
         }
 
-        if my_size > min_size && ( min_acceptable_so_far == 0 || my_size < min_acceptable_so_far) {
+        if my_size > min_size && (min_acceptable_so_far == 0 || my_size < min_acceptable_so_far) {
             min_acceptable_so_far = my_size;
         }
 
@@ -393,7 +395,6 @@ $ ls
         assert_eq!(output, 95437);
     }
 
-
     #[test]
     fn test_aoc_min_delete() {
         let mut root = Dir::new("/");
@@ -406,7 +407,6 @@ $ ls
         let output = aoc_min_delete(&root);
         assert_eq!(output, 24933642);
     }
-
 }
 
 use history::*;
@@ -470,9 +470,7 @@ fn build<'h>(
     return hist;
 }
 
-
-fn aoc_min_delete(root : &Dir) -> usize{
-
+fn aoc_min_delete(root: &Dir) -> usize {
     /* The total disk space available to the filesystem is 70000000.
     To run the update, you need unused space of at least 30000000.
     You need to find a directory you can delete that will free up enough space to run the update.
