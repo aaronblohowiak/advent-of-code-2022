@@ -160,7 +160,7 @@ fn build<'h>(
                 hist = build(hist, dir);
             }
 
-            Line::Command {name, arg} => {
+            Line::Command { name, arg } => {
                 panic!("Unsupported command: {:?} {:?}", name, arg);
             }
         }
