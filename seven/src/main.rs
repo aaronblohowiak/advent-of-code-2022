@@ -165,10 +165,34 @@ impl Dir {
         }
         return (my_size, dir_sum);
     }
+
+    fn aoc_dir_size_min_above(&self , min_size : usize) -> (usize, usize) {
+        let mut my_size = 0;
+        let mut min_acceptable_so_far = 0;
+
+        for f in &self.files {
+            my_size += f.size;
+        }
+
+        for (_, d) in &self.children {
+            let (kid_size, kid_min_dirsize) = d.aoc_dir_size_min_above(min_size);
+            my_size += kid_size;
+
+            if kid_min_dirsize > 0 && (min_acceptable_so_far == 0 || kid_min_dirsize < min_acceptable_so_far) {
+                min_acceptable_so_far = kid_min_dirsize;
+            }
+        }
+
+        if my_size > min_size && ( min_acceptable_so_far == 0 || my_size < min_acceptable_so_far) {
+            min_acceptable_so_far = my_size;
+        }
+
+        return (my_size, min_acceptable_so_far);
+    }
 }
 
 #[cfg(test)]
-mod test {
+mod test_parsing {
     const PROVIDED_INPUT: &str = include_str!("../7.test");
 
     use crate::history;
@@ -368,6 +392,21 @@ $ ls
         let (_, output) = root.aoc_dir_sum();
         assert_eq!(output, 95437);
     }
+
+
+    #[test]
+    fn test_aoc_min_delete() {
+        let mut root = Dir::new("/");
+
+        build(
+            &mut history::parse_input(&PROVIDED_INPUT).unwrap().1.iter(),
+            &mut root,
+        );
+
+        let output = aoc_min_delete(&root);
+        assert_eq!(output, 24933642);
+    }
+
 }
 
 use history::*;
@@ -431,6 +470,28 @@ fn build<'h>(
     return hist;
 }
 
+
+fn aoc_min_delete(root : &Dir) -> usize{
+
+    /* The total disk space available to the filesystem is 70000000.
+    To run the update, you need unused space of at least 30000000.
+    You need to find a directory you can delete that will free up enough space to run the update.
+
+    Find the smallest directory that, if deleted, would free up enough space on the filesystem to run the update.
+    What is the total size of that directory? */
+
+    let du = root.size();
+
+    let current_free = 70000000 - du;
+    let min_free = 30000000;
+
+    let additional_to_delete = min_free - current_free;
+
+    let (_, output) = root.aoc_dir_size_min_above(additional_to_delete);
+
+    return output;
+}
+
 fn main() {
     let input = fs::read_to_string("./7.input").expect("Error while reading");
     let result = history::parse_input(&input);
@@ -446,6 +507,8 @@ fn main() {
     build(&mut hist, &mut root);
 
     let (_, output) = root.aoc_dir_sum();
+    println!("{:?}", output);
 
+    let output = aoc_min_delete(&root);
     println!("{:?}", output);
 }
