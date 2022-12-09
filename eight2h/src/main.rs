@@ -1,22 +1,21 @@
+use std::fs;
 use std::iter;
- use std::ops::RangeInclusive;
- use std::fs;
+use std::ops::RangeInclusive;
 
-
-
- #[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 struct Position {
     x: isize,
-    y: isize
+    y: isize,
 }
 
 impl Position {
     fn new(x: isize, y: isize) -> Position {
-        return Position{x: x , y: y};
+        return Position { x: x, y: y };
     }
 }
 
-fn p(x: isize, y:isize ) -> Position {
+//shorthand.
+fn p(x: isize, y: isize) -> Position {
     Position::new(x, y)
 }
 
@@ -31,8 +30,8 @@ struct CarteseanWalker {
 impl CarteseanWalker {
     //creates a new walker that has positive bounds inclusive of max
     // if stride is negative, starts at max
-    fn new(max: Position, stride: Position) -> CarteseanWalker{
-        let mut start =Position::new(0,0);
+    fn new(max: Position, stride: Position) -> CarteseanWalker {
+        let mut start = Position::new(0, 0);
         if stride.x < 0 {
             start.x = max.x;
         }
@@ -41,13 +40,13 @@ impl CarteseanWalker {
         }
 
         CarteseanWalker {
-            pos: start, 
+            pos: start,
             stride: stride,
             bounds_x: RangeInclusive::new(0, max.x),
-            bounds_y: RangeInclusive::new(0, max.y), }
+            bounds_y: RangeInclusive::new(0, max.y),
+        }
     }
 }
-
 
 impl iter::Iterator for CarteseanWalker {
     type Item = Position;
@@ -58,11 +57,13 @@ impl iter::Iterator for CarteseanWalker {
             self.pos.x += self.stride.x;
             self.pos.y += self.stride.y;
             result
-        }else{
+        } else {
             None
-        }
+        };
     }
 }
+
+type Forest = Vec<Vec<isize>>;
 
 //from the internet. thank you, internet.
 fn transpose<T>(v: Vec<Vec<T>>) -> Vec<Vec<T>> {
@@ -79,29 +80,33 @@ fn transpose<T>(v: Vec<Vec<T>>) -> Vec<Vec<T>> {
         .collect()
 }
 
-fn parse_forest(s: &str) -> Vec<Vec<isize>> {
-    transpose(s.trim()
-        .split("\n")
-        .map(|row| {
-            row.split_inclusive(|_x| true)
-                .map(|a| {
-                    return a.parse::<isize>().unwrap();
-                })
-                .collect()
-        })
-        .collect())
+//go from a row-oriented file of digits to a column-oriented [[isize]]
+fn parse_forest(s: &str) -> Forest {
+    transpose(
+        s.trim()
+            .split("\n")
+            .map(|row| {
+                row.split_inclusive(|_x| true)
+                    .map(|a| {
+                        return a.parse::<isize>().unwrap();
+                    })
+                    .collect()
+            })
+            .collect(),
+    )
 }
 
-fn forest_bounds(forest : &Vec<Vec<isize>>)->Position{
-    Position::new((forest[0].len()-1 ) as isize, (forest.len()-1) as isize)
+//return the inclusive bounds of the forest's indices
+fn forest_bounds(forest: &Forest) -> Position {
+    Position::new((forest[0].len() - 1) as isize, (forest.len() - 1) as isize)
 }
 
 //TODO make Vec<Vec<isize>> a type and add this as a trait on that type?
-fn get(forest : &Vec<Vec<isize>>, pos: &Position) ->  isize {
+fn get(forest: &Forest, pos: &Position) -> isize {
     forest[pos.x as usize][pos.y as usize]
 }
 
-fn score_direction(forest : &Vec<Vec<isize>>, candidate: &Position, direction: Position) -> isize {
+fn score_direction(forest: &Forest, candidate: &Position, direction: Position) -> isize {
     let mut walker = CarteseanWalker::new(forest_bounds(forest), direction);
     walker.pos.x = candidate.x;
     walker.pos.y = candidate.y;
@@ -114,14 +119,14 @@ fn score_direction(forest : &Vec<Vec<isize>>, candidate: &Position, direction: P
     while let Some(pos) = walker.next() {
         score += 1;
         if get(forest, &pos) >= height {
-            break
+            break;
         }
     }
 
-    return score
+    return score;
 }
 
-fn score(forest: &Vec<Vec<isize>>, candidate: &Position) -> isize{
+fn score(forest: &Forest, candidate: &Position) -> isize {
     let left = score_direction(forest, candidate, p(-1, 0));
     let right = score_direction(forest, candidate, p(1, 0));
     let up = score_direction(forest, candidate, p(0, -1));
@@ -130,15 +135,21 @@ fn score(forest: &Vec<Vec<isize>>, candidate: &Position) -> isize{
     return left * right * up * down;
 }
 
-fn score_forest(forest : &Vec<Vec<isize>>) -> isize {
+fn score_forest(forest: &Forest) -> isize {
     let bounds = forest_bounds(&forest);
 
-    return (0..bounds.y).map(|row| {
-        let mut walker = CarteseanWalker::new(bounds, p(1,0));
-        walker.pos.y = row;
+    return (0..bounds.y)
+        .map(|row| {
+            let mut walker = CarteseanWalker::new(bounds, p(1, 0));
+            walker.pos.y = row;
 
-        walker.map(|tree| score(forest, &tree)).max().expect("row should have at least one tree to score")
-    }).max().expect("forest should have trees to score");
+            walker
+                .map(|tree| score(forest, &tree))
+                .max()
+                .expect("row should have at least one tree to score")
+        })
+        .max()
+        .expect("forest should have trees to score");
 }
 
 fn main() {
@@ -149,67 +160,62 @@ fn main() {
     println!("{:?}", score_forest(&forest));
 }
 
-
 #[cfg(test)]
 mod tests {
     use crate::*;
 
     #[test]
     fn test_stride() {
-        let down = CarteseanWalker::new(Position::new(4, 3), Position::new(0,1));
+        let down = CarteseanWalker::new(Position::new(4, 3), Position::new(0, 1));
 
-        let result :Vec<Position> = down.collect();
+        let result: Vec<Position> = down.collect();
 
-        let should = vec![p(0,0),p(0,1),p(0,2),p(0,3)];
+        let should = vec![p(0, 0), p(0, 1), p(0, 2), p(0, 3)];
         assert_eq!(result, should);
 
-
-        let right = CarteseanWalker::new(Position::new(4, 3), Position::new(1,0));
-        let result :Vec<Position> = right.collect();
-        let should = vec![p(0,0),p(1,0),p(2,0),p(3,0),p(4,0)];
+        let right = CarteseanWalker::new(Position::new(4, 3), Position::new(1, 0));
+        let result: Vec<Position> = right.collect();
+        let should = vec![p(0, 0), p(1, 0), p(2, 0), p(3, 0), p(4, 0)];
         assert_eq!(result, should);
 
+        let left = CarteseanWalker::new(Position::new(4, 3), Position::new(-1, 0));
 
-        let left = CarteseanWalker::new(Position::new(4, 3), Position::new(-1,0));
-
-        let result :Vec<Position> = left.collect();
-        let should = vec![p(4,0),p(3,0),p(2,0),p(1,0),p(0,0)];
+        let result: Vec<Position> = left.collect();
+        let should = vec![p(4, 0), p(3, 0), p(2, 0), p(1, 0), p(0, 0)];
         assert_eq!(result, should);
     }
-
 
     #[test]
     fn test_input() {
         let forest = parse_forest(&PROVIDED_INPUT);
         println!("{:?}", forest);
-        
-        let left = CarteseanWalker::new(forest_bounds(&forest), Position::new(-1,0));
-        let result : Vec<isize> = left.map(|pos|forest[pos.x as usize][pos.y as usize]).collect();
+
+        let left = CarteseanWalker::new(forest_bounds(&forest), Position::new(-1, 0));
+        let result: Vec<isize> = left
+            .map(|pos| forest[pos.x as usize][pos.y as usize])
+            .collect();
 
         println!("{:?}", result);
 
-        assert_eq!(result, vec![3,7,3,0,3]);
+        assert_eq!(result, vec![3, 7, 3, 0, 3]);
     }
 
     #[test]
-    fn test_view_score(){
+    fn test_view_score() {
         let forest = parse_forest(&PROVIDED_INPUT);
 
-        let view_score = score(&forest, &Position::new(2,1));
+        let view_score = score(&forest, &Position::new(2, 1));
         assert_eq!(view_score, 4);
 
-        let view_score = score(&forest, &Position::new(2,3));
+        let view_score = score(&forest, &Position::new(2, 3));
         assert_eq!(view_score, 8);
     }
-    
 
     #[test]
-    fn test_score_forest(){
+    fn test_score_forest() {
         let forest = parse_forest(&PROVIDED_INPUT);
         assert_eq!(score_forest(&forest), 8);
     }
 
-
     const PROVIDED_INPUT: &str = include_str!("../8.test");
-
 }
