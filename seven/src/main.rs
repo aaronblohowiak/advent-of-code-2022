@@ -1,6 +1,6 @@
 use core::slice::Iter;
-use std::fs;
 use std::collections::HashMap;
+use std::fs;
 
 /*
     Command(cmd name [args])
@@ -145,20 +145,46 @@ impl Dir {
 
         return total;
     }
+
+    fn aoc_dir_sum(&self) -> (usize, usize) {
+        let mut my_size = 0;
+        let mut dir_sum = 0;
+
+        for f in &self.files {
+            my_size += f.size;
+        }
+
+        for (_, d) in &self.children {
+            let (kid_size, kid_sum) = d.aoc_dir_sum();
+            my_size += kid_size;
+            dir_sum += kid_sum;
+        }
+
+        if my_size <= 100000 {
+            dir_sum += my_size;
+        }
+        return (my_size, dir_sum);
+    }
 }
 
 #[cfg(test)]
 mod test {
-    const provided_input : &str = include_str!("../7.test");
+    const PROVIDED_INPUT: &str = include_str!("../7.test");
 
     use crate::history;
     use crate::*;
 
     #[test]
-    fn test_size_one_layer_deep(){
+    fn test_size_one_layer_deep() {
         let mut d = Dir::new("/");
-        d.files.push(File{name:"l".to_string(), size:1000});
-        d.files.push(File{name:"eet".to_string(), size:337});
+        d.files.push(File {
+            name: "l".to_string(),
+            size: 1000,
+        });
+        d.files.push(File {
+            name: "eet".to_string(),
+            size: 337,
+        });
         assert_eq!(d.size(), 1337);
     }
 
@@ -255,7 +281,7 @@ $ ls
         let mut root = Dir::new("/");
 
         build(
-            &mut history::parse_input(&provided_input).unwrap().1.iter(),
+            &mut history::parse_input(&PROVIDED_INPUT).unwrap().1.iter(),
             &mut root,
         );
 
@@ -318,24 +344,33 @@ $ ls
         assert_eq!(root, verification_root)
     }
 
-
     #[test]
-    fn test_size_provided_input(){
+    fn test_size_provided_input() {
         let mut root = Dir::new("/");
 
         build(
-            &mut history::parse_input(&provided_input).unwrap().1.iter(),
+            &mut history::parse_input(&PROVIDED_INPUT).unwrap().1.iter(),
             &mut root,
         );
 
         assert_eq!(root.size(), 48381165);
     }
 
+    #[test]
+    fn test_aoc_size_thing() {
+        let mut root = Dir::new("/");
 
+        build(
+            &mut history::parse_input(&PROVIDED_INPUT).unwrap().1.iter(),
+            &mut root,
+        );
+
+        let (_, output) = root.aoc_dir_sum();
+        assert_eq!(output, 95437);
+    }
 }
 
 use history::*;
-
 
 //not sure if i could get away with eliding some of the hints, but this makes compiler happy :/
 fn build<'h>(
@@ -399,7 +434,6 @@ fn build<'h>(
 fn main() {
     let input = fs::read_to_string("./7.input").expect("Error while reading");
     let result = history::parse_input(&input);
-    println!("{:?}", result);
 
     let mut root = Dir {
         name: "/".to_string(),
@@ -409,5 +443,9 @@ fn main() {
 
     let h = result.unwrap().1;
     let mut hist = h.iter();
-    let _rest = build(&mut hist, &mut root);
+    build(&mut hist, &mut root);
+
+    let (_, output) = root.aoc_dir_sum();
+
+    println!("{:?}", output);
 }
