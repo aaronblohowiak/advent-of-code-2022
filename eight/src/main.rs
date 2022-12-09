@@ -1,6 +1,7 @@
 /* A tree is visible if all of the other trees between it and an edge of the grid are shorter than it. */
 
 use std::fs;
+use std::ops::RangeInclusive;
 use std::str::FromStr;
 
 #[derive(Default, Debug)]
@@ -23,7 +24,9 @@ impl FromStr for Tree {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.parse::<isize>() {
             Ok(height) => Ok(Tree::new(height)),
-            Err(err) => { panic!("Could not parse tree height! {:?} ", err); }
+            Err(err) => {
+                panic!("Could not parse tree height! {:?} ", err);
+            }
         }
     }
 }
@@ -37,15 +40,20 @@ fn main() {
     println!("{:?}", total);
 }
 
-fn parse_forest(s : &str) -> Vec<Vec<Tree>> {
-    s.trim().split("\n").map(|row| {
-        row.split_inclusive(|_x| true).map(|a|{
-             return a.parse::<Tree>().unwrap();
-        }).collect()
-    }).collect()
+fn parse_forest(s: &str) -> Vec<Vec<Tree>> {
+    s.trim()
+        .split("\n")
+        .map(|row| {
+            row.split_inclusive(|_x| true)
+                .map(|a| {
+                    return a.parse::<Tree>().unwrap();
+                })
+                .collect()
+        })
+        .collect()
 }
 
-fn mark_forest(mut forest : Vec<Vec<Tree>>) -> isize{
+fn mark_forest(mut forest: Vec<Vec<Tree>>) -> isize {
     sweep(&mut forest, 1);
     reverse(&mut forest);
     sweep(&mut forest, 1);
@@ -61,13 +69,18 @@ fn mark_forest(mut forest : Vec<Vec<Tree>>) -> isize{
     forest = transpose(forest);
 
     let total = forest.iter().fold(0, |acc, x| {
-        acc + x.iter().fold(0, |mut acc, x| { if x.visibility > 0 {acc += 1}; acc })
+        acc + x.iter().fold(0, |mut acc, x| {
+            if x.visibility > 0 {
+                acc += 1
+            };
+            acc
+        })
     });
 
     return total;
 }
 
-fn sweep(forest: &mut Vec<Vec<Tree>>, mask : u8){
+fn sweep(forest: &mut Vec<Vec<Tree>>, mask: u8) {
     for line in forest {
         let mut hieghest = -1;
         for mut tree in line {
@@ -79,7 +92,7 @@ fn sweep(forest: &mut Vec<Vec<Tree>>, mask : u8){
     }
 }
 
-fn reverse(forest : &mut Vec<Vec<Tree>>){
+fn reverse(forest: &mut Vec<Vec<Tree>>) {
     for line in forest {
         line.reverse();
     }
@@ -100,8 +113,7 @@ fn transpose<T>(v: Vec<Vec<T>>) -> Vec<Vec<T>> {
         .collect()
 }
 
-
-fn test_input(s: &str, expected: isize ){
+fn test_input(s: &str, expected: isize) {
     let forest: Vec<Vec<Tree>> = parse_forest(s);
     let total = mark_forest(forest);
     assert_eq!(total, expected);
@@ -110,7 +122,7 @@ fn test_input(s: &str, expected: isize ){
 const PROVIDED_INPUT: &str = include_str!("../8.test");
 
 #[test]
-fn test_scoring(){
+fn test_scoring() {
     let all_visible = "123\n456\n789\n\n";
 
     let short_middle = "222\n212\n222\n";
@@ -118,5 +130,4 @@ fn test_scoring(){
     test_input(all_visible, 9);
     test_input(short_middle, 8);
     test_input(PROVIDED_INPUT, 21);
-
 }
