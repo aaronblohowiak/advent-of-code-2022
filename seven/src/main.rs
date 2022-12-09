@@ -1,10 +1,6 @@
 use core::slice::Iter;
 use std::fs;
-
-use std::include_str;
 use std::collections::HashMap;
-
-
 
 /*
     Command(cmd name [args])
@@ -128,22 +124,43 @@ struct Dir {
 }
 
 impl Dir {
-    fn new(s : &str) -> Dir {
-        return Dir{
+    fn new(s: &str) -> Dir {
+        return Dir {
             name: s.to_string(),
             files: vec![],
-            children: HashMap::new()
+            children: HashMap::new(),
+        };
+    }
+
+    //size of all my files and that of all my children.
+    fn size(&self) -> usize {
+        let mut total = 0;
+        for f in &self.files {
+            total += f.size;
         }
+
+        for (_, d) in &self.children {
+            total += d.size();
+        }
+
+        return total;
     }
 }
 
-
 #[cfg(test)]
 mod test {
-    use std::hash::Hash;
+    const provided_input : &str = include_str!("../7.test");
 
     use crate::history;
     use crate::*;
+
+    #[test]
+    fn test_size_one_layer_deep(){
+        let mut d = Dir::new("/");
+        d.files.push(File{name:"l".to_string(), size:1000});
+        d.files.push(File{name:"eet".to_string(), size:337});
+        assert_eq!(d.size(), 1337);
+    }
 
     #[test]
     fn test_building_one_layer_deep() {
@@ -163,7 +180,7 @@ dir d
         );
 
         let mut children = HashMap::new();
-        children.insert("a".to_string(),  Dir::new("a"));
+        children.insert("a".to_string(), Dir::new("a"));
         children.insert("d".to_string(), Dir::new("d"));
 
         assert_eq!(
@@ -184,7 +201,6 @@ dir d
             }
         )
     }
-
 
     #[test]
 
@@ -208,8 +224,11 @@ $ ls
 
         let mut children = HashMap::new();
         let mut a = Dir::new("a");
-        a.files.push(File{size: 123, name:"test.txt".to_string()});
-        children.insert("a".to_string(),  a);
+        a.files.push(File {
+            size: 123,
+            name: "test.txt".to_string(),
+        });
+        children.insert("a".to_string(), a);
 
         assert_eq!(
             root,
@@ -230,52 +249,95 @@ $ ls
         )
     }
 
-
     #[test]
 
     fn test_provided_input() {
-        let input = include_str!("../7.test");
-
         let mut root = Dir::new("/");
 
         build(
-            &mut history::parse_input(&input).unwrap().1.iter(),
+            &mut history::parse_input(&provided_input).unwrap().1.iter(),
             &mut root,
         );
 
         let mut verification_root = Dir::new("/");
-        verification_root.files.push(File{name: "b.txt".to_string(), size: 14848514});
-        verification_root.files.push(File{name: "c.dat".to_string(), size: 8504156});
+        verification_root.files.push(File {
+            name: "b.txt".to_string(),
+            size: 14848514,
+        });
+        verification_root.files.push(File {
+            name: "c.dat".to_string(),
+            size: 8504156,
+        });
 
         let mut a = Dir::new("a");
-        a.files.push(File{size: 29116, name:"f".to_string()});
-        a.files.push(File{size: 2557, name:"g".to_string()});
-        a.files.push(File{size: 62596, name:"h.lst".to_string()});
-
-        a.children.insert("e".to_string(), Dir{
-            name: "e".to_string(),
-            files: vec![File{name: "i".to_string(), size: 584}],
-            children: HashMap::new()
+        a.files.push(File {
+            size: 29116,
+            name: "f".to_string(),
         });
-        verification_root.children.insert("a".to_string(),  a);
+        a.files.push(File {
+            size: 2557,
+            name: "g".to_string(),
+        });
+        a.files.push(File {
+            size: 62596,
+            name: "h.lst".to_string(),
+        });
+
+        a.children.insert(
+            "e".to_string(),
+            Dir {
+                name: "e".to_string(),
+                files: vec![File {
+                    name: "i".to_string(),
+                    size: 584,
+                }],
+                children: HashMap::new(),
+            },
+        );
+        verification_root.children.insert("a".to_string(), a);
 
         let mut d = Dir::new("d");
-        d.files.push(File{size: 4060174, name:"j".to_string()});
-        d.files.push(File{size: 8033020, name:"d.log".to_string()});
-        d.files.push(File{size: 5626152, name:"d.ext".to_string()});
-        d.files.push(File{size: 7214296, name:"k".to_string()});
-        verification_root.children.insert("d".to_string(),  d);
+        d.files.push(File {
+            size: 4060174,
+            name: "j".to_string(),
+        });
+        d.files.push(File {
+            size: 8033020,
+            name: "d.log".to_string(),
+        });
+        d.files.push(File {
+            size: 5626152,
+            name: "d.ext".to_string(),
+        });
+        d.files.push(File {
+            size: 7214296,
+            name: "k".to_string(),
+        });
+        verification_root.children.insert("d".to_string(), d);
 
-        assert_eq!(
-            root,
-            verification_root
-        )
+        assert_eq!(root, verification_root)
     }
+
+
+    #[test]
+    fn test_size_provided_input(){
+        let mut root = Dir::new("/");
+
+        build(
+            &mut history::parse_input(&provided_input).unwrap().1.iter(),
+            &mut root,
+        );
+
+        assert_eq!(root.size(), 48381165);
+    }
+
 
 }
 
 use history::*;
 
+
+//not sure if i could get away with eliding some of the hints, but this makes compiler happy :/
 fn build<'h>(
     mut hist: &'h mut Iter<'h, history::Line<'h>>,
     cwd: &mut Dir,
@@ -316,7 +378,10 @@ fn build<'h>(
                 arg: Some(name),
             } => {
                 //get a mutable reference to the directory
-                let dir = cwd.children.get_mut(&name.to_string()).expect("trying to enter a directory that does not exist");
+                let dir = cwd
+                    .children
+                    .get_mut(&name.to_string())
+                    .expect("trying to enter a directory that does not exist");
                 /* find the dir with the same name, then call build inside that dir with the remaining history */
                 hist = build(hist, dir);
             }
@@ -344,5 +409,5 @@ fn main() {
 
     let h = result.unwrap().1;
     let mut hist = h.iter();
-    let rest = build(&mut hist, &mut root);
+    let _rest = build(&mut hist, &mut root);
 }
