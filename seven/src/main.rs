@@ -18,7 +18,7 @@ mod history {
     };
 
     #[derive(Debug, PartialEq)]
-    pub enum CommandHistory<'a> {
+    pub enum Line<'a> {
         Command { name: &'a str, arg: Option<&'a str> },
         File { size: usize, name: &'a str },
         Dir { name: &'a str },
@@ -26,38 +26,38 @@ mod history {
 
     //three options: command line, dir name or file size
 
-    fn parse_command(i: &str) -> IResult<&str, CommandHistory> {
+    fn parse_command(i: &str) -> IResult<&str, Line> {
         let name = preceded(tag("$ "), is_not(" \n"));
         let arg = preceded(tag(" "), is_not("\n"));
 
         let full_line = terminated(pair(name, opt(arg)), tag("\n"));
 
-        map(full_line, |(name, arg)| CommandHistory::Command {
+        map(full_line, |(name, arg)| Line::Command {
             name: name,
             arg: arg,
         })(i)
     }
 
-    fn parse_dir(i: &str) -> IResult<&str, CommandHistory> {
+    fn parse_dir(i: &str) -> IResult<&str, Line> {
         let name = preceded(tag("dir "), is_not(" \n"));
         let full_line = terminated(name, tag("\n"));
 
-        map(full_line, |name| CommandHistory::Dir { name: name })(i)
+        map(full_line, |name| Line::Dir { name: name })(i)
     }
 
-    fn parse_file(i: &str) -> IResult<&str, CommandHistory> {
+    fn parse_file(i: &str) -> IResult<&str, Line> {
         let size_str = terminated(is_a("1234567890"), tag(" "));
         let name = is_not("\n");
 
         let full_line = terminated(pair(size_str, name), tag("\n"));
 
-        map(full_line, |(size_str, name)| CommandHistory::File {
+        map(full_line, |(size_str, name)| Line::File {
             name: name,
             size: size_str.parse().unwrap(),
         })(i)
     }
 
-    pub fn parse_input(i: &str) -> IResult<&str, Vec<CommandHistory>> {
+    pub fn parse_input(i: &str) -> IResult<&str, Vec<Line>> {
         many1(alt((parse_file, parse_command, parse_dir)))(i)
     }
 
@@ -69,14 +69,14 @@ mod history {
         fn test_parse_command() {
             assert_eq!(
                 parse_command("$ cd /\n").unwrap().1,
-                CommandHistory::Command {
+                Line::Command {
                     name: "cd",
                     arg: Some("/")
                 }
             );
             assert_eq!(
                 parse_command("$ ls\n").unwrap().1,
-                CommandHistory::Command {
+                Line::Command {
                     name: "ls",
                     arg: None
                 }
@@ -87,7 +87,7 @@ mod history {
         fn test_parse_dir() {
             assert_eq!(
                 parse_dir("dir a\n").unwrap().1,
-                CommandHistory::Dir { name: "a" }
+                Line::Dir { name: "a" }
             );
         }
 
@@ -95,7 +95,7 @@ mod history {
         fn test_parse_file() {
             assert_eq!(
                 parse_file("14848514 b.txt\n").unwrap().1,
-                CommandHistory::File {
+                Line::File {
                     name: "b.txt",
                     size: 14848514usize
                 }
@@ -110,22 +110,18 @@ mod history {
     }
 }
 
-// fn parse_input(i: &str) -> IResult<&str, Vec<Any>> {
-//     many1())(i)
-// }
-
 #[derive(Debug, PartialEq)]
 
-struct File<'a> {
+struct File {
     size: usize,
-    name: &'a str,
+    name: String,
 }
 
 #[derive(Debug, PartialEq)]
-struct Dir<'a> {
-    name: &'a str,
-    files: Vec<File<'a>>,
-    children: Vec<Dir<'a>>,
+struct Dir {
+    name: String,
+    files: Vec<File>,
+    children: Vec<Dir>,
 }
 
 #[cfg(test)]
@@ -144,26 +140,26 @@ dir a
 dir d
 ";
 
-        let root = Dir {
-            name: "/",
+        let mut root = Dir {
+            name: "/".to_string(),
             files: Vec::new(),
             children: Vec::new(),
         };
 
-        build(history::parse_input(&input).unwrap().1, &root);
+        build(history::parse_input(&input).unwrap().1, &mut root);
 
         assert_eq!(
             root,
             Dir {
-                name: "/",
+                name: "/".to_string(),
                 children: vec![
                     Dir {
-                        name: "a",
+                        name: "a".to_string(),
                         children: vec![],
                         files: vec![]
                     },
                     Dir {
-                        name: "d",
+                        name: "d".to_string(),
                         children: vec![],
                         files: vec![]
                     }
@@ -171,11 +167,11 @@ dir d
                 files: vec![
                     File {
                         size: 14848514,
-                        name: "b.txt"
+                        name: "b.txt".to_string()
                     },
                     File {
                         size: 8504156,
-                        name: "c.dat"
+                        name: "c.dat".to_string()
                     },
                 ]
             }
@@ -183,18 +179,49 @@ dir d
     }
 }
 
-fn build(_hist: Vec<history::CommandHistory>, _cwd: &Dir) {}
+use history::*;
+
+fn build<'a, 'b>(hist: Vec<history::Line>, cwd: &mut Dir) {
+    for line in hist {
+        match line {
+            Line::Dir {name} => {
+                cwd.children.push(Dir {
+                    name: name.to_owned(),
+                    files: Vec::new(),
+                    children: Vec::new(),
+                });
+                println!("New dir! {:?} ", name);
+            }
+
+           Line::File {name, size }=> {
+
+                let file = File {
+                    name: name.to_owned(),
+                    size: size,
+                };
+
+                cwd.files.push(file);
+            },
+
+            Line::Command{name: "cd", arg: Some("/")} => {},
+            Line::Command{name: "cd", arg: Some("..")} => return,
+
+            _ => {println!("Not supported {:?}", line)} 
+
+        }
+    }
+}
 
 fn main() {
     let input = fs::read_to_string("./7.input").expect("Error while reading");
     let result = history::parse_input(&input);
     println!("{:?}", result);
 
-    let root = Dir {
-        name: "/",
+    let mut root = Dir {
+        name: "/".to_string(),
         files: Vec::new(),
         children: Vec::new(),
     };
 
-    build(result.unwrap().1, &root);
+    build(result.unwrap().1, &mut root);
 }
