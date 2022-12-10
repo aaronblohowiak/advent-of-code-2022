@@ -10,7 +10,7 @@ use crate::Command::*;
 
 #[derive(Clone, Copy, Debug)]
 struct ComputerState {
-    X: i32,
+    x: i32,
     processing: Option<Command>,
 }
 
@@ -22,20 +22,20 @@ fn process(hist: &mut Vec<ComputerState>, cmd: Command) {
         .expect("can not process an empty state, please.");
     //set the current tick to be procesing the command
     head.processing = Some(cmd);
-    let reg = head.X;
-    let cpy = head.clone();
+    let reg = head.x;
+    let cpy = *head;
 
     match cmd {
         Noop => {
             hist.push(ComputerState {
-                X: reg,
+                x: reg,
                 processing: None,
             }); //push next state.
         }
         Addx(addend) => {
             hist.push(cpy); //duplicate state.
             hist.push(ComputerState {
-                X: reg + addend,
+                x: reg + addend,
                 processing: None,
             }); //record state after complete
         }
@@ -49,9 +49,8 @@ fn parse(s: &str) -> impl Iterator<Item = Command> + '_ {
         } else {
             //get the second element in line and parse as a signed int.
             let x: i32 = line
-                .split(" ")
-                .skip(1)
-                .next()
+                .split(' ')
+                .nth(1)
                 .expect("Addx should have a value")
                 .parse()
                 .expect("Addx param should parse to i32");
@@ -60,41 +59,21 @@ fn parse(s: &str) -> impl Iterator<Item = Command> + '_ {
     });
 }
 
-fn debug(hist: &Vec<ComputerState>) {
+fn debug(hist: &[ComputerState]) {
     for (i, x) in hist.iter().enumerate() {
-        println!("IDx: {} Value: {} Processing: {:?}", i, x.X, x.processing);
+        println!("IDx: {} Value: {} Processing: {:?}", i, x.x, x.processing);
     }
 }
 
-#[test]
-fn test_process_simple() {
-    let mut hist = Vec::new();
-    hist.push(ComputerState {
-        X: 1,
-        processing: None,
-    });
-
-    process(&mut hist, Noop);
-    process(&mut hist, Addx(3));
-    process(&mut hist, Addx(-5));
-
-    assert_eq!(hist[1].X, 1);
-    assert_eq!(hist[3].X, 4);
-    assert_eq!(hist[5].X, -1);
-
-    println!("{:?}", hist);
-    // assert_eq!(1, -1);
-}
-
-fn signal_strength(hist: &Vec<ComputerState>, nth: usize) -> isize {
-    return hist[nth - 1].X as isize * nth as isize;
+fn signal_strength(hist: &[ComputerState], nth: usize) -> isize {
+    hist[nth - 1].x as isize * nth as isize
 }
 
 fn process_file(s: &str) -> Vec<ComputerState> {
     let input = fs::read_to_string(s).expect("Error while reading");
     let mut hist = Vec::new();
     hist.push(ComputerState {
-        X: 1,
+        x: 1,
         processing: None,
     });
 
@@ -102,7 +81,7 @@ fn process_file(s: &str) -> Vec<ComputerState> {
         process(&mut hist, cmd);
     }
 
-    return hist;
+    hist
 }
 
 /*
@@ -111,7 +90,7 @@ fn process_file(s: &str) -> Vec<ComputerState> {
         its pixels where the CRT is currently drawing, then those pixels will be drawn.
 
 */
-fn render(hist: &Vec<ComputerState>) -> String {
+fn render(hist: &[ComputerState]) -> String {
     let mut result = "".to_string();
 
     for (i, state) in hist.iter().enumerate() {
@@ -121,7 +100,7 @@ fn render(hist: &Vec<ComputerState>) -> String {
             result += "\n";
         }
 
-        result += if RangeInclusive::new(state.X - 1, state.X + 1).contains(&(x as i32)) {
+        result += if RangeInclusive::new(state.x - 1, state.x + 1).contains(&(x as i32)) {
             "#"
         } else {
             "."
@@ -142,6 +121,26 @@ fn main() {
     println!("Part One: {}", total);
 
     println!("{}", render(&hist));
+}
+
+#[test]
+fn test_process_simple() {
+    let mut hist = Vec::new();
+    hist.push(ComputerState {
+        x: 1,
+        processing: None,
+    });
+
+    process(&mut hist, Noop);
+    process(&mut hist, Addx(3));
+    process(&mut hist, Addx(-5));
+
+    assert_eq!(hist[1].x, 1);
+    assert_eq!(hist[3].x, 4);
+    assert_eq!(hist[5].x, -1);
+
+    println!("{:?}", hist);
+    // assert_eq!(1, -1);
 }
 
 #[test]
@@ -167,15 +166,15 @@ fn test_file() {
     */
     let mut hist = process_file("10.test");
 
-    assert_eq!(hist[20 - 1].X, 21);
+    assert_eq!(hist[20 - 1].x, 21);
     assert_eq!(signal_strength(&hist, 20), 420);
-    assert_eq!(hist[60 - 1].X, 19);
+    assert_eq!(hist[60 - 1].x, 19);
     assert_eq!(signal_strength(&hist, 60), 1140);
-    assert_eq!(hist[100 - 1].X, 18);
+    assert_eq!(hist[100 - 1].x, 18);
     assert_eq!(signal_strength(&hist, 100), 1800);
-    assert_eq!(hist[140 - 1].X, 21);
-    assert_eq!(hist[180 - 1].X, 16);
-    assert_eq!(hist[220 - 1].X, 18);
+    assert_eq!(hist[140 - 1].x, 21);
+    assert_eq!(hist[180 - 1].x, 16);
+    assert_eq!(hist[220 - 1].x, 18);
 
     let rendered = "##..##..##..##..##..##..##..##..##..##..
 ###...###...###...###...###...###...###.
