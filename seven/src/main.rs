@@ -1,4 +1,3 @@
-use core::slice::Iter;
 use std::collections::HashMap;
 use std::fs;
 
@@ -25,11 +24,11 @@ struct Dir {
 
 impl Dir {
     fn new(s: &str) -> Dir {
-        return Dir {
+        Dir {
             name: s.to_string(),
             files: vec![],
             children: HashMap::new(),
-        };
+        }
     }
 
     //size of all my files and that of all my children.
@@ -39,11 +38,11 @@ impl Dir {
             total += f.size;
         }
 
-        for (_, d) in &self.children {
+        self.children.iter().for_each(|(_, d)| {
             total += d.size();
-        }
+        });
 
-        return total;
+        total
     }
 
     //Walk the dir try to find the sum of directories that have a transitive sum less than 100k
@@ -56,16 +55,16 @@ impl Dir {
             my_size += f.size;
         }
 
-        for (_, d) in &self.children {
+        self.children.iter().for_each(|(_, d)| {
             let (kid_size, kid_sum) = d.aoc_dir_sum();
             my_size += kid_size;
             dir_sum += kid_sum;
-        }
+        });
 
         if my_size <= 100000 {
             dir_sum += my_size;
         }
-        return (my_size, dir_sum);
+        (my_size, dir_sum)
     }
 
     //Walk the dir try to find the smallest directory that, when deleted, will free min_size space.
@@ -78,7 +77,7 @@ impl Dir {
             my_size += f.size;
         }
 
-        for (_, d) in &self.children {
+        self.children.iter().for_each(|(_, d)| {
             let (kid_size, kid_min_dirsize) = d.aoc_dir_size_min_above(min_size);
             my_size += kid_size;
 
@@ -87,13 +86,13 @@ impl Dir {
             {
                 min_acceptable_so_far = kid_min_dirsize;
             }
-        }
+        });
 
         if my_size > min_size && (min_acceptable_so_far == 0 || my_size < min_acceptable_so_far) {
             min_acceptable_so_far = my_size;
         }
 
-        return (my_size, min_acceptable_so_far);
+        (my_size, min_acceptable_so_far)
     }
 }
 
@@ -110,12 +109,9 @@ One of the challenges here is that not only do i want to build it recursively,
 not sure if i could get away with eliding some of the hints, but this makes compiler happy :/
 
 */
-fn build<'h>(
-    mut hist: &'h mut Iter<'h, history::Line<'h>>,
-    cwd: &mut Dir,
-) -> &'h mut Iter<'h, history::Line<'h>> {
+fn build<'h>(hist: &mut impl Iterator<Item = history::Line<'h>>, cwd: &mut Dir) {
     while let Some(line) = hist.next() {
-        match *line {
+        match line {
             Line::Dir { name } => {
                 cwd.children.insert(name.to_string(), Dir::new(name));
             }
@@ -123,7 +119,7 @@ fn build<'h>(
             Line::File { name, size } => {
                 let file = File {
                     name: name.to_string(),
-                    size: size,
+                    size,
                 };
 
                 cwd.files.push(file);
@@ -143,7 +139,7 @@ fn build<'h>(
             Line::Command {
                 name: "cd",
                 arg: Some(".."),
-            } => return hist,
+            } => return,
 
             Line::Command {
                 name: "cd",
@@ -157,7 +153,7 @@ fn build<'h>(
 
                 /* find the dir with the same name, then call build inside that dir with the remaining history.
                 when we've cd .. back to here, resume processing. */
-                hist = build(hist, dir);
+                build(hist, dir);
             }
 
             Line::Command { name, arg } => {
@@ -165,8 +161,6 @@ fn build<'h>(
             }
         }
     }
-
-    return hist;
 }
 
 fn aoc_min_delete(root: &Dir) -> usize {
@@ -186,7 +180,7 @@ fn aoc_min_delete(root: &Dir) -> usize {
 
     let (_, output) = root.aoc_dir_size_min_above(additional_to_delete);
 
-    return output;
+    output
 }
 
 fn main() {
@@ -200,7 +194,7 @@ fn main() {
     };
 
     let h = result.unwrap().1;
-    let mut hist = h.iter();
+    let mut hist = h.into_iter();
     build(&mut hist, &mut root);
 
     let (_, output) = root.aoc_dir_sum();
@@ -222,7 +216,7 @@ mod history {
         IResult,
     };
 
-    #[derive(Debug, PartialEq)]
+    #[derive(Debug, PartialEq, Eq)]
     pub enum Line<'a> {
         Command { name: &'a str, arg: Option<&'a str> },
         File { size: usize, name: &'a str },
@@ -235,17 +229,14 @@ mod history {
 
         let full_line = terminated(pair(name, opt(arg)), tag("\n"));
 
-        map(full_line, |(name, arg)| Line::Command {
-            name: name,
-            arg: arg,
-        })(i)
+        map(full_line, |(name, arg)| Line::Command { name, arg })(i)
     }
 
     fn parse_dir(i: &str) -> IResult<&str, Line> {
         let name = preceded(tag("dir "), is_not(" \n"));
         let full_line = terminated(name, tag("\n"));
 
-        map(full_line, |name| Line::Dir { name: name })(i)
+        map(full_line, |name| Line::Dir { name })(i)
     }
 
     fn parse_file(i: &str) -> IResult<&str, Line> {
@@ -255,7 +246,7 @@ mod history {
         let full_line = terminated(pair(size_str, name), tag("\n"));
 
         map(full_line, |(size_str, name)| Line::File {
-            name: name,
+            name,
             size: size_str.parse().unwrap(),
         })(i)
     }
@@ -344,7 +335,7 @@ dir d
         let mut root = Dir::new("/");
 
         build(
-            &mut history::parse_input(&input).unwrap().1.iter(),
+            &mut history::parse_input(input).unwrap().1.into_iter(),
             &mut root,
         );
 
@@ -356,7 +347,7 @@ dir d
             root,
             Dir {
                 name: "/".to_string(),
-                children: children,
+                children,
                 files: vec![
                     File {
                         size: 14848514,
@@ -387,7 +378,7 @@ $ ls
         let mut root = Dir::new("/");
 
         build(
-            &mut history::parse_input(&input).unwrap().1.iter(),
+            &mut history::parse_input(input).unwrap().1.into_iter(),
             &mut root,
         );
 
@@ -403,7 +394,7 @@ $ ls
             root,
             Dir {
                 name: "/".to_string(),
-                children: children,
+                children,
                 files: vec![
                     File {
                         size: 14848514,
@@ -424,7 +415,7 @@ $ ls
         let mut root = Dir::new("/");
 
         build(
-            &mut history::parse_input(&PROVIDED_INPUT).unwrap().1.iter(),
+            &mut history::parse_input(PROVIDED_INPUT).unwrap().1.into_iter(),
             &mut root,
         );
 
@@ -492,7 +483,7 @@ $ ls
         let mut root = Dir::new("/");
 
         build(
-            &mut history::parse_input(&PROVIDED_INPUT).unwrap().1.iter(),
+            &mut history::parse_input(PROVIDED_INPUT).unwrap().1.into_iter(),
             &mut root,
         );
 
@@ -504,7 +495,7 @@ $ ls
         let mut root = Dir::new("/");
 
         build(
-            &mut history::parse_input(&PROVIDED_INPUT).unwrap().1.iter(),
+            &mut history::parse_input(PROVIDED_INPUT).unwrap().1.into_iter(),
             &mut root,
         );
 
@@ -517,7 +508,7 @@ $ ls
         let mut root = Dir::new("/");
 
         build(
-            &mut history::parse_input(&PROVIDED_INPUT).unwrap().1.iter(),
+            &mut history::parse_input(PROVIDED_INPUT).unwrap().1.into_iter(),
             &mut root,
         );
 
