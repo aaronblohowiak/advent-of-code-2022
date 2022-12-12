@@ -80,7 +80,11 @@ const RIGHT: Coord = Coord { x: 1, y: 0 };
 const COMPASS: [Coord; 4] = [UP, DOWN, LEFT, RIGHT];
 
 impl Topo {
-    fn neighbors_uphill(&mut self, pt: Coord) -> impl IntoIterator<Item = (Coord, isize)> {
+    fn neighbors(
+        &mut self,
+        pt: Coord,
+        check: fn(char, char) -> bool,
+    ) -> impl IntoIterator<Item = (Coord, isize)> {
         let cur = self.plane.get(pt).unwrap();
 
         COMPASS
@@ -90,7 +94,7 @@ impl Topo {
 
                 if let Some(n) = self.plane.get(lookup) {
                     self.visited.insert(lookup);
-                    if n <= cur || (n as isize - cur as isize).abs() < 2 {
+                    if check(cur, n) {
                         return Some((lookup, 1));
                     }
                 }
@@ -100,24 +104,32 @@ impl Topo {
             .collect::<Vec<(Coord, isize)>>()
     }
 
+    fn neighbors_uphill(&mut self, pt: Coord) -> impl IntoIterator<Item = (Coord, isize)> {
+        self.neighbors(pt, |cur, n| {
+            n <= cur || (n as isize - cur as isize).abs() < 2
+        })
+    }
+
     fn neighbors_downhill(&mut self, pt: Coord) -> impl IntoIterator<Item = (Coord, isize)> {
-        let cur = self.plane.get(pt).unwrap();
+        self.neighbors(pt, |cur, n| {
+            n >= cur || (n as isize - cur as isize).abs() < 2
+        })
+    }
 
-        COMPASS
-            .iter()
-            .filter_map(|dir| {
-                let lookup = pt + *dir;
-
-                if let Some(n) = self.plane.get(lookup) {
-                    self.visited.insert(lookup);
-                    if n >= cur || (n as isize - cur as isize).abs() < 2 {
-                        return Some((lookup, 1));
-                    }
+    fn debug(&self) {
+        for y in 0..self.plane.height() {
+            for x in 0..self.plane.width() {
+                if self.visited.contains(&Coord { x, y }) {
+                    print!("#");
+                } else {
+                    let c = self.plane.get(Coord { x, y }).unwrap();
+                    let color = c as isize - 'a' as isize + 1;
+                    print!("\u{001b}[38;5;{}m{}\u{001b}[0m", color, c);
                 }
-
-                None
-            })
-            .collect::<Vec<(Coord, isize)>>()
+            }
+            println!();
+        }
+        println!();
     }
 }
 
@@ -146,20 +158,7 @@ fn main() {
     if let Some(result) = dijkstra(&start, |x| topo.neighbors_uphill(*x), |x| *x == goal) {
         println!("shortest path pt 1 is {:?}", result.0.len() - 1); //number of steps, not the total points which includes the first.
     } else {
-        println!("Oh noes!");
-        for y in 0..topo.plane.height() {
-            for x in 0..topo.plane.width() {
-                if topo.visited.contains(&Coord { x, y }) {
-                    print!("#");
-                } else {
-                    let c = topo.plane.get(Coord { x, y }).unwrap();
-                    let color = c as isize - 'a' as isize + 1;
-                    print!("\u{001b}[38;5;{}m{}\u{001b}[0m", color, c);
-                }
-            }
-            println!();
-        }
-        println!();
+        topo.debug();
     }
 
     println!();
@@ -177,19 +176,7 @@ fn main() {
     ) {
         println!("Least path to 'a' is {:?}", result.0.len() - 1); //number of steps, not the total points which includes the first.
     } else {
-        println!("Oh noes!");
-        for y in 0..topo.plane.height() {
-            for x in 0..topo.plane.width() {
-                if topo.visited.contains(&Coord { x, y }) {
-                    print!("#");
-                } else {
-                    let c = topo.plane.get(Coord { x, y }).unwrap();
-                    let color = c as isize - 'a' as isize + 1;
-                    print!("\u{001b}[38;5;{}m{}\u{001b}[0m", color, c);
-                }
-            }
-            println!();
-        }
+        topo.debug();
         println!();
     }
 }
