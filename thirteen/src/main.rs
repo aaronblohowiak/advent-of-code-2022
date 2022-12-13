@@ -3,7 +3,6 @@ use std::fs;
 
 use itertools::Itertools;
 
-
 use nom::{
     branch::alt,
     bytes::complete::tag,
@@ -42,47 +41,20 @@ fn parse_packet_value(i: &str) -> IResult<&str, PacketEntry> {
     map(nom::character::complete::u32, PacketEntry::Value)(i)
 }
 
-
 fn parse_packet_list(i: &str) -> IResult<&str, PacketEntry> {
     map(
         delimited(tag("["),
-            separated_list0(tag(","),
-                alt((
-                    parse_packet_value,
-                    parse_packet_list
-                ))
-            ),
-            tag("]")
-        ),
-        PacketEntry::List)(i) //map this to a PacketEntry::List
-}
-
-fn compare_lists(left: &Vec<PacketEntry>, right: &Vec<PacketEntry>) -> Ordering{
-    let mut right_iter = right.iter();
-    for l in left {
-        if let Some(r) = right_iter.next(){
-            let ordering = compare(l, r);
-            if ordering != Ordering::Equal {
-                return ordering;
-            }
-        }else{
-            return Ordering::Greater;
-        }
-    }
-
-    if let Some(_r) = right_iter.next() {
-        return Ordering::Less
-    }
-
-    Ordering::Equal
+            separated_list0(tag(","), alt(( parse_packet_value, parse_packet_list))),
+            tag("]")),
+        PacketEntry::List)(i)
 }
 
 fn compare(left: &PacketEntry, right: &PacketEntry) -> Ordering{
     match (left, right) {
         (PacketEntry::Value(left), PacketEntry::Value(right)) => left.cmp(right),
-        (PacketEntry::List(left), PacketEntry::List(right)) => compare_lists(left, right),
-        (PacketEntry::List(left), PacketEntry::Value(right)) => compare_lists(left, &vec![PacketEntry::Value(*right)]),
-        (PacketEntry::Value(left), PacketEntry::List(right)) => compare_lists(&vec![PacketEntry::Value(*left)], right)
+        (PacketEntry::List(left), PacketEntry::List(right)) => left.cmp(right),
+        (PacketEntry::List(left), PacketEntry::Value(right)) => left.cmp(&vec![PacketEntry::Value(*right)]),
+        (PacketEntry::Value(left), PacketEntry::List(right)) => vec![PacketEntry::Value(*left)].cmp(right)
     }
 }
 
@@ -92,11 +64,9 @@ fn main() {
     let input = fs::read_to_string("./13.input").expect("could not read file");
 
     let pairs : Vec<(PacketEntry, PacketEntry)> = input.split("\n\n").map(|g| {
-        let (left, right) = g.split('\n').map(|s| {
+        g.split('\n').map(|s| {
             parse_packet_list(s).expect("parse packet fully").1
-        }
-        ).next_tuple().unwrap();
-        (left, right)
+        }).next_tuple().unwrap()
     }).collect();
 
     let cnt : usize = pairs.iter()
@@ -111,8 +81,6 @@ fn main() {
     let separators = ( PacketEntry::List(vec![PacketEntry::List(vec![PacketEntry::Value(2)])]), PacketEntry::List(vec![PacketEntry::List(vec![PacketEntry::Value(6)])]));
     packets.push(&separators.0);
     packets.push(&separators.1);
-
-
     packets.sort();
 
     let res : usize = packets.iter().enumerate().filter(|(_, p)| **p == &separators.0 || **p == &separators.1 ).map(|(i, _)| i + 1).product();
