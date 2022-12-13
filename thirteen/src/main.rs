@@ -91,7 +91,7 @@ fn main() {
 
     let input = fs::read_to_string("./13.input").expect("could not read file");
 
-    let mut pairs : Vec<(PacketEntry, PacketEntry)> = input.split("\n\n").map(|g| {
+    let pairs : Vec<(PacketEntry, PacketEntry)> = input.split("\n\n").map(|g| {
         let (left, right) = g.split('\n').map(|s| {
             parse_packet_list(s).expect("parse packet fully").1
         }
