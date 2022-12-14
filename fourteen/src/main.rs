@@ -5,11 +5,8 @@ use itertools::Itertools;
 
 
 fn main() {
-    println!("Hello, world!");
-}
-
-fn sand_until_abyss() -> usize {
-    0
+    let (_, rounds) = part1("./14.input");
+    println!("{}", rounds);
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -17,6 +14,21 @@ struct Coord {
     x: isize,
     y: isize,
 }
+
+impl std::ops::Add for Coord {
+    type Output = Self;
+
+    fn add(self, other: Self) -> Self {
+        Self {
+            x: self.x + other.x,
+            y: self.y + other.y,
+        }
+    }
+}
+const DOWN: Coord = Coord { x: 0, y: 1 };
+const DOWN_LEFT: Coord = Coord { x: -1, y: 1 };
+const DOWN_RIGHT: Coord = Coord { x: 1, y: 1 };
+const FALLING_DIRECTIONS : [Coord; 3] = [DOWN, DOWN_LEFT, DOWN_RIGHT];
 
 const SOURCE_COORD : Coord = Coord{x: 500, y:0};
 
@@ -54,7 +66,7 @@ impl Field {
                 } else if y > self.max_y {
                     print!("_");
                 }else{
-                    print!(" ");
+                    print!(".");
                 }
             }
             println!();
@@ -84,25 +96,51 @@ impl Field {
 
         let mut pos = from.clone();
 
-        let mut x = 0;
-        
+        self.upsert(pos, c);
         loop {
             pos.x += x_step;
             pos.y += y_step;
             self.upsert(pos, c);
             println!("{:?} {:?} {:?}", from, to, pos);
 
-            x +=1;
-
-            if pos == *to || x > 100 {
+            if pos == *to {
                 return
             }
         };
     }
+
+    fn next_position(&mut self, falling: Coord) -> Option<Coord>{
+        FALLING_DIRECTIONS.iter()
+            .find(|dir| self.positions.get(&(falling + **dir)).unwrap_or(&' ') == &' ' )
+            .map(|c| falling + *c)
+    }
+
+    fn next_sand_location(&mut self) -> Result<Coord, Vec<Coord>>{
+        let mut pos = SOURCE_COORD;
+        let mut err = Vec::new();
+
+        loop{
+            match self.next_position(pos) {
+                Some(n) =>{
+                    pos = n;
+
+                    err.push(pos);
+                //i could debug here?
+
+                    if pos.x < self.min_x || pos.x > self.max_x || pos.y > self.max_y {
+                        return Err(err);
+                    }
+                },
+                None => {
+                    return Ok(pos);
+                }
+            }
+        }
+    }
 }
 
 fn parse_input(fname: &str) -> Vec<Vec<Coord>> {
-    let input = fs::read_to_string("./14.test").expect("could not read file");
+    let input = fs::read_to_string(fname).expect("could not read file");
 
     input.lines().map(|l| {
         l.split(" -> ")
@@ -115,29 +153,43 @@ fn parse_input(fname: &str) -> Vec<Vec<Coord>> {
     }).collect::<Vec<Vec<Coord>>>()
 }
 
+fn part1(fname: &str) -> (Field, usize) {
+    let splines = parse_input(fname);
+        
+    let mut f = Field::default();
+
+    for spline in splines {
+        let mut coords = spline.iter();
+        let mut curr = coords.next().expect("at least two coords");
+        while let Some(next) = coords.next() {
+            f.paint_range(curr, next, '#');
+            curr = next;
+        }
+    }
+
+    f.debug(SOURCE_COORD, '+');
+
+
+    let mut rounds = 0;
+    while let Ok(pos) = f.next_sand_location() {
+        f.upsert(pos, 'o');
+        rounds +=1;
+    }
+
+    return (f, rounds)
+}
+
 mod test {
     use crate::*;
     use pretty_assertions::{assert_eq, assert_ne};
 
     #[test]
     fn test_input_file(){
+        let (f, rounds) = part1("./14.test");
 
-        let splines = parse_input("14.test");
-        
-        let mut f = Field::default();
-
-        for spline in splines {
-            let mut coords = spline.iter();
-            let mut curr = coords.next().expect("at least two coords");
-            while let Some(next) = coords.next() {
-                f.paint_range(curr, next, '#');
-                curr = next;
-            }
-        }
-
-        f.debug(SOURCE_COORD, 'c');
+        f.debug(SOURCE_COORD, '+');
 
 
-        assert_eq!(24, sand_until_abyss())
+        assert_eq!(24, rounds);
     }
 }
