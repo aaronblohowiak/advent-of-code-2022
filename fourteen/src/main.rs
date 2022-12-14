@@ -1,11 +1,12 @@
 use itertools::Itertools;
-use std::collections::HashMap;
+use rustc_hash::FxHashMap;
+
 use std::fs;
 use std::ops::RangeInclusive;
 
 fn main() {
-    let (_, rounds) = part1("./14.input");
-    println!("{}", rounds);
+    // let (_, rounds) = part1("./14.input");
+    // println!("{}", rounds);
 
     let (_, rounds) = part2("./14.input");
     println!("{}", rounds+1);
@@ -38,7 +39,7 @@ struct Field {
     min_x: isize,
     max_x: isize,
     max_y: isize,
-    positions: HashMap<Coord, char>,
+    positions: FxHashMap<Coord, char>,
     lock_y: bool //HACK HACK HACK for part1 and part2 support...
 }
 
@@ -48,7 +49,7 @@ impl Default for Field {
             min_x: isize::MAX,
             max_x: isize::MIN,
             max_y: 0,
-            positions: HashMap::new(),
+            positions: FxHashMap::default(),
             lock_y: false
         }
     }
@@ -107,7 +108,6 @@ impl Field {
             pos.x += x_step;
             pos.y += y_step;
             self.upsert(pos, c);
-            println!("{:?} {:?} {:?}", from, to, pos);
 
             if pos == *to {
                 return;
@@ -203,10 +203,10 @@ fn calculate_rounds(fname: &str, failed: fn(pos: &Coord, f: &Field)->bool ) -> (
         f.upsert(pos, 'o');
         rounds += 1;
 
-        if rounds % 1000 == 0 {
-            f.debug(SOURCE_COORD, '+');
+        // if rounds % 1000 == 0 {
+        //     f.debug(SOURCE_COORD, '+');
 
-        }
+        // }
     }
 
     f.debug(SOURCE_COORD, '+');
