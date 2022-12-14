@@ -94,7 +94,7 @@ impl Field {
         let x_step = to.x.cmp(&from.x) as isize;
         let y_step = to.y.cmp(&from.y) as isize;
 
-        let mut pos = from.clone();
+        let mut pos = *from;
 
         self.upsert(pos, c);
         loop {
@@ -145,7 +145,7 @@ fn parse_input(fname: &str) -> Vec<Vec<Coord>> {
     input.lines().map(|l| {
         l.split(" -> ")
         .map(|c| {
-            let (x, y) = c.split(",")
+            let (x, y) = c.split(',')
                 .map(|s| s.parse::<isize>().unwrap())
                 .tuples().next().unwrap();
             Coord{x, y}
@@ -161,7 +161,7 @@ fn part1(fname: &str) -> (Field, usize) {
     for spline in splines {
         let mut coords = spline.iter();
         let mut curr = coords.next().expect("at least two coords");
-        while let Some(next) = coords.next() {
+        for next in coords {
             f.paint_range(curr, next, '#');
             curr = next;
         }
@@ -176,12 +176,13 @@ fn part1(fname: &str) -> (Field, usize) {
         rounds +=1;
     }
 
-    return (f, rounds)
+    (f, rounds)
 }
 
+#[cfg(test)]
 mod test {
-    use crate::*;
-    use pretty_assertions::{assert_eq, assert_ne};
+    
+    use crate::{part1, SOURCE_COORD};
 
     #[test]
     fn test_input_file(){
