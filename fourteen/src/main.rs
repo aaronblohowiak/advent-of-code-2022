@@ -6,6 +6,9 @@ use std::ops::RangeInclusive;
 fn main() {
     let (_, rounds) = part1("./14.input");
     println!("{}", rounds);
+
+    let (_, rounds) = part2("./14.input");
+    println!("{}", rounds+1);
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
@@ -36,6 +39,7 @@ struct Field {
     max_x: isize,
     max_y: isize,
     positions: HashMap<Coord, char>,
+    lock_y: bool //HACK HACK HACK for part1 and part2 support...
 }
 
 impl Default for Field {
@@ -45,6 +49,7 @@ impl Default for Field {
             max_x: isize::MIN,
             max_y: 0,
             positions: HashMap::new(),
+            lock_y: false
         }
     }
 }
@@ -55,16 +60,16 @@ impl Field {
             "Showing X: {} - {} , Y: 0 - {}",
             self.min_x - 1,
             self.max_x + 1,
-            self.max_y + 1
+            self.max_y + 2
         );
-        for y in RangeInclusive::new(0, self.max_y + 1) {
+        for y in RangeInclusive::new(0, self.max_y + 2) {
             for x in RangeInclusive::new(self.min_x - 1, self.max_x + 1) {
                 let pos = Coord { x, y };
                 if pos == extra {
                     print!("{}", extra_c);
                 } else if let Some(c) = self.positions.get(&pos) {
                     print!("{}", c);
-                } else if y > self.max_y {
+                } else if y > self.max_y + 1{
                     print!("_");
                 } else {
                     print!(".");
@@ -84,7 +89,7 @@ impl Field {
             self.max_x = pos.x;
         }
 
-        if pos.y > self.max_y {
+        if !self.lock_y && pos.y > self.max_y {
             self.max_y = pos.y;
         }
 
@@ -110,30 +115,43 @@ impl Field {
         }
     }
 
-    fn next_position(&mut self, falling: Coord) -> Option<Coord> {
+    fn part_2_hack_get(&mut self, pos: &Coord) -> char {
+        if pos.y == self.max_y + 2 {
+            return '#'; //virtual floor
+        }
+
+        *self.positions.get(pos).unwrap_or(&' ')
+    }
+
+
+    fn next_falling_position(&mut self, falling: Coord) -> Option<Coord> {
         FALLING_DIRECTIONS
             .iter()
-            .find(|dir| self.positions.get(&(falling + **dir)).unwrap_or(&' ') == &' ')
+            .find(|dir| self.part_2_hack_get(&(falling + **dir)) == ' ')
             .map(|c| falling + *c)
     }
 
-    fn next_sand_location(&mut self) -> Result<Coord, Vec<Coord>> {
+    fn next_resting_location(&mut self, failed: fn(pos: &Coord, f: &Field)->bool) -> Result<Coord, Vec<Coord>> {
         let mut pos = SOURCE_COORD;
         let mut err = Vec::new();
 
         loop {
-            match self.next_position(pos) {
+            match self.next_falling_position(pos) {
                 Some(n) => {
                     pos = n;
 
                     err.push(pos);
                     //i could debug here?
 
-                    if pos.x < self.min_x || pos.x > self.max_x || pos.y > self.max_y {
+                    if failed(&pos, self){
                         return Err(err);
                     }
                 }
                 None => {
+                    if failed(&pos, self){
+                        return Err(err);
+                    }
+
                     return Ok(pos);
                 }
             }
@@ -162,7 +180,7 @@ fn parse_input(fname: &str) -> Vec<Vec<Coord>> {
         .collect::<Vec<Vec<Coord>>>()
 }
 
-fn part1(fname: &str) -> (Field, usize) {
+fn calculate_rounds(fname: &str, failed: fn(pos: &Coord, f: &Field)->bool ) -> (Field, usize) {
     let splines = parse_input(fname);
 
     let mut f = Field::default();
@@ -176,16 +194,39 @@ fn part1(fname: &str) -> (Field, usize) {
         }
     }
 
+    f.lock_y = true;
+
     f.debug(SOURCE_COORD, '+');
 
     let mut rounds = 0;
-    while let Ok(pos) = f.next_sand_location() {
+    while let Ok(pos) = f.next_resting_location(failed) {
         f.upsert(pos, 'o');
         rounds += 1;
+
+        if rounds % 1000 == 0 {
+            f.debug(SOURCE_COORD, '+');
+
+        }
     }
+
+    f.debug(SOURCE_COORD, '+');
+
 
     (f, rounds)
 }
+
+fn part1(fname: &str) -> (Field, usize){
+    let failed = |pos: &Coord, f: &Field| pos.y > f.max_y;
+
+    calculate_rounds(fname, failed)
+}
+
+fn part2(fname: &str) -> (Field, usize){
+    let failed = |pos: &Coord, f: &Field| *pos == SOURCE_COORD;
+
+    calculate_rounds(fname, failed)
+}
+
 
 #[cfg(test)]
 mod test {
