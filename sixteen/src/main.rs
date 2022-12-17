@@ -2,138 +2,28 @@
 use bit_iter::BitIter; 
 use std::{collections::HashMap, rc::Rc, hash::Hash}; //TODO: FxHashmap
 
+use pathfinding::prelude::dijkstra_all;
+use std::time::{SystemTime};
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 struct State {
     position: usize,
     nodes_open: u64,
-    time_remaining: u8
-}
-
-#[derive(Debug)]
-enum Task {
-    Open(usize),
-    Walk(usize),
-    Fin,
-}
-
-#[derive(Debug)]
-struct Step {
-    state: State,
+    time_remaining: u8,
+    pressure_being_released: usize,
+    pressure_released_so_far: usize,
     task: Task,
-    total: usize,
-    next: Option<Rc<Step>>
+    prev: Option<Rc<State>>
 }
 
-#[derive(Debug)]
-struct Solver {
-    memos: HashMap<State, Rc<Step>>,
-    adjacencies: [u64; 64], //lookup adjacency list by node
-    valve_values: [usize; 64] //lookup flow rate by node
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+enum Task {
+    Open,
+    Walk{to: usize, time_left: usize},
+    Fin
 }
 
-impl Solver {
-    fn default() -> Solver {
-        Solver {
-            memos: HashMap::new(),
-            adjacencies: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-            valve_values: [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-        }
-    }
-
-    fn lookup_valve_flow_rate(&self, id: usize) -> usize {
-        self.valve_values[id]
-    }
-
-    fn candidate_moves(&self, state: State) -> Vec<State> {
-        let mut ret= vec![];
-
-        for i in BitIter::from(self.adjacencies[state.position]) {
-            let mut next_state = state.clone();
-            next_state.position = i; //walk to adjacency
-            next_state.time_remaining -= 1;
-            ret.push({
-                next_state
-            });
-        }
-
-        let mask = (1 << state.position);
-
-        if state.nodes_open & mask == 0 { //both are 0, default value of CLOSED
-            if self.lookup_valve_flow_rate(state.position) == 0 {
-                return ret;
-            }
-
-            let mut next_state = state.clone();
-            next_state.nodes_open |= mask; //change the valve to OPEN
-            next_state.time_remaining -= 1;
-            ret.push({
-                next_state
-            });
-        }
-
-        ret
-    }
-    
-    fn best_path(&mut self, state: State) -> Option<Rc<Step>> {
-        if state.time_remaining == 0 {
-            return None
-        }
-    
-        //find the best moves i can do
-        let best_next = self.candidate_moves(state).iter()
-            .filter_map(|c| self.memoized_best_path(*c))
-            .max_by(|a,b| a.total.cmp(&b.total) );
-    
-        if best_next.is_none() {
-            return Some(Rc::new(Step{
-                task: Task::Fin,
-                state: state,
-                next: None,
-                total: 0
-            }));
-        }
-    
-        let next = best_next.unwrap();
-        let task = if next.state.position == state.position {
-            //we didnt move and the only possibility is that we uncorked, set our task appropriately
-            Task::Open(state.position)
-        }else {
-            Task::Walk(next.state.position)
-        };
-        
-        let step = Rc::new(Step{
-            state: state,
-            total: match task {
-                Task::Walk (_) => 0,
-                Task::Open (id) => self.lookup_valve_flow_rate(id) * state.time_remaining as usize,
-                _ => panic!("Should not happen")
-            } + next.total,
-            next: Some(next),
-            task: task
-        });
-    
-    
-        Some (step)
-    }
-    
-    
-    fn memoized_best_path(&mut self, state: State) -> Option<Rc<Step>> {
-        if let Some(res) = self.memos.get(&state) {
-            return Some(res.clone())
-        } 
-
-        let res = self.best_path(state);
-
-        if res.is_some() {
-            let step = res.unwrap();
-            self.memos.insert(state, step.clone());
-            return Some(step)
-        }
-
-        None
-    }
-}
 
 #[derive(Default)]
 struct StringInterner {
@@ -152,47 +42,168 @@ impl StringInterner {
             idx
     }
 }
+
+struct Context {
+    interner: StringInterner,
+    starting_moves: Vec<(usize, usize)>, 
+    distance_matrix: HashMap<usize, HashMap<usize, usize>>,
+    flow_rates: HashMap<usize, usize>,
+}
+
 fn main() {
     
-    let input = std::fs::read_to_string("./16.test").expect("could not read file");
+    let ctx = load("./16.input");
+
+
+    let mut flow_nodes_m : u64 = 0;
+    for id in ctx.flow_rates.keys() {
+        flow_nodes_m |= 1 << id;
+    }
+
+    let flow_nodes = flow_nodes_m.clone();
+
+    let starting_position = ctx.interner.s_to_i["AA"];
+
+    let mut frontier: &mut Vec<Rc<State>> = &mut ctx.starting_moves.iter().map(|(chamber, cost)| Rc::new(State {
+        position: starting_position,
+        nodes_open: 0,
+        time_remaining: 30,
+        pressure_being_released: 0,
+        pressure_released_so_far: 0,
+        task: Task::Walk{to: *chamber, time_left: *cost},
+        prev: None
+    })).collect();
+
+    let mut processed : &mut Vec<Rc<State>> = &mut vec![];
+    
+    let mut done : Vec<Rc<State>> = vec![];
+
+    let mut prev = SystemTime::now();
+    //let's just see what a full BFS does?
+    for i in 0..30 {
+
+        while let Some(prev) = frontier.pop() {
+            let mut s = (*prev).clone();
+            s.prev = Some(prev);
+
+            s.pressure_released_so_far += s.pressure_being_released;
+            s.time_remaining -= 1;
+
+            if s.time_remaining == 0 {
+                done.push(Rc::new(s.clone()));
+                continue;
+            }
+
+            match(s.task) {
+                Task::Walk{to,  mut time_left} => {
+                    time_left -= 1;
+                    if time_left == 0 {
+                        //open the valve
+                        s.position = to;
+                        s.task = Task::Open;
+                    }else{
+                        s.task = Task::Walk{to, time_left};
+                    }
+
+                    processed.push(Rc::new(s));
+                },
+                Task::Open => {
+                    s.nodes_open |= 1 <<s.position;
+                    s.pressure_being_released += ctx.flow_rates[&s.position];
+
+                    let potentials = flow_nodes & !s.nodes_open; //unneccesary performant way to find nodes left to visit?
+
+                    for to in BitIter::from(potentials){
+                        let time_left = ctx.distance_matrix[&s.position][&to];
+                        s.task = Task::Walk{to, time_left};
+                        processed.push(Rc::new(s.clone()))
+                    }
+                    
+                    if potentials == 0 {
+                        s.task = Task::Fin;
+                        processed.push(Rc::new(s.clone()));
+                    }
+                    
+                },
+                Task::Fin => { 
+                    processed.push(Rc::new(s));
+                }
+            }
+
+
+        }
+
+        (frontier, processed) = (processed, frontier);
+    }
+
+    let best = (done).iter().max_by(|a,b| (***a).pressure_released_so_far.cmp(&b.pressure_released_so_far));
+
+    println!("{:?}", best);
+}
+
+
+fn load(fname: &str) -> Context {
+    let input = std::fs::read_to_string(fname).expect("could not read file");
 
     let res : Vec<(String, usize, Vec<String>)> = input.lines().flat_map( valve_parser::valve).collect();
 
 
-    let interner = &mut StringInterner::default();
+    let mut interner = StringInterner::default();
 
-    let mut solver = Solver::default();
+    let mut input_map: HashMap<usize, Vec<usize>> = HashMap::new();
+    let mut nonzero_flow_rates: HashMap<usize, usize> =  HashMap::new(); //from id to flow rate
     
     for v in res {
-        println!("{:?}", v);
-
         let id = interner.get_index(&v.0);
+        let flow: usize = v.1;
 
-        solver.valve_values[id] = v.1;
-
-        let mut adjacencies : u64 = 0; 
-        for adjacency in v.2 {
-            adjacencies |= 1 << interner.get_index(&adjacency);
+        if flow > 0 {
+            nonzero_flow_rates.insert(id, flow);
         }
 
-        solver.adjacencies[id] = adjacencies;
+        let adjacency_ids : Vec<usize> = v.2.iter().map(|s| interner.get_index(s)).collect();
+        input_map.insert(id, adjacency_ids);
     }
 
-    let idx = interner.get_index(&"DD");
-    print!("DD {:?} ", solver.valve_values[idx]);
-    for i in BitIter::from(solver.adjacencies[idx]) {
-        print!("{} ", interner.i_to_s[&i])
-    }
-    println!();
-
-
-    let inital = State {
-        position: interner.get_index(&"AA"),
-        nodes_open: 0,
-        time_remaining: 30
+    let successors = |&n: &usize| -> Vec<(usize, usize)> {
+        input_map[&n].iter().map(|f| (*f, 1)).collect()
     };
 
-    println!("{:?}", solver.best_path(inital))
+
+    //id of valve to a map of the other non-zero valves and the cost to get there.
+    let mut valve_distances: HashMap<usize, HashMap<usize, usize>> = HashMap::new();
+
+    for (starting, _) in &nonzero_flow_rates {
+        let distances = dijkstra_all(starting, successors);
+        valve_distances.insert(*starting, HashMap::new());
+
+        for (id, _) in &nonzero_flow_rates {
+            if id == starting { continue }
+            let (_, cost) = distances[&id];
+            valve_distances.get_mut(&starting).unwrap().insert(*id, cost);
+        }
+    }
+
+    let aa_idx = interner.get_index(&"AA");
+
+    let mut starting_moves: Vec<(usize, usize)> = vec![];
+
+    let aa_distances = dijkstra_all(&aa_idx, successors);
+    for (id, _) in &nonzero_flow_rates {
+        starting_moves.push((*id, aa_distances[id].1));
+    }
+
+    println!("Starting moves: ");
+    for (id, cost) in &starting_moves {
+        println!("{} {}", interner.i_to_s[id], cost)
+    }
+
+    Context{
+        interner: interner,
+        starting_moves,
+        distance_matrix: valve_distances,
+        flow_rates: nonzero_flow_rates
+    }
 }
 
 

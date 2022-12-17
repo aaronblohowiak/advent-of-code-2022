@@ -7,4 +7,5 @@ edition = "2021"
 
 [dependencies]
 bit-iter = "1.1.1"
+pathfinding = "4.1.1"
 peg = "0.8.1"
