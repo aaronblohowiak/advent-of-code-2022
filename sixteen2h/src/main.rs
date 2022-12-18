@@ -1,6 +1,19 @@
-use bit_iter::BitIter;
-use std::{collections::HashMap, hash::Hash, rc::Rc}; //TODO: FxHashmap
+/*
 
+    WARNING: THIS CODE IS WORSE THAN GARBAGE. DONT LOOK AT IT. IT IS SERIOUSLY BAD.
+
+    ALL THE CODE IN THIS REPO IS BAD, BUT THIS IS ACTIVELY HARMFUL.
+
+
+    IT SHOWS THE UGLY REMNANTS OF BEING BFS SHODDILY CONVERTED TO DFS.
+
+    THERE IS NOTHING TO LEARN HERE.
+*/
+
+use bit_iter::BitIter;
+use std::{ hash::Hash, rc::Rc}; 
+
+use rustc_hash::FxHashMap as HashMap;
 use itertools::Itertools;
 use pathfinding::prelude::dijkstra_all;
 use std::time::SystemTime;
@@ -52,7 +65,7 @@ struct Context {
 }
 
 fn main() {
-    let ctx = load("./16.test");
+    let ctx = load("./16.input");
 
     let mut flow_nodes_m: u64 = 0;
     for id in ctx.flow_rates.keys() {
@@ -90,195 +103,202 @@ fn main() {
         })
         .collect();
 
-    let mut processed: &mut Vec<Rc<State>> = &mut vec![];
-
     let mut done: Vec<Rc<State>> = vec![];
 
     let _prev = SystemTime::now();
-    for i in 0..26 {
-        println!("Time: {}", i);
-        while let Some(prev) = frontier.pop() {
-            let mut s = (*prev).clone();
-            s.prev = Some(prev);
 
-            s.pressure_released_so_far += s.pressure_being_released;
-            s.time_remaining -= 1;
+    let mut best = 0;
 
-            if s.time_remaining == 0 {
+    let mut counter: usize = 0;
+
+    while let Some(prev) = frontier.pop() {
+        counter += 1;
+        if counter % 10000000 == 0 {
+            println!("steps evaluated: {}   queue depth: {}   ", counter, frontier.len())
+        }
+ 
+        let mut s = (*prev).clone();
+        s.prev = Some(prev);
+
+        s.pressure_released_so_far += s.pressure_being_released;
+        s.time_remaining -= 1;
+
+        if s.time_remaining == 0 {
+            if s.pressure_released_so_far > best {
+                println!("{}", s.pressure_released_so_far);
+                best = s.pressure_released_so_far;
                 done.push(Rc::new(s.clone()));
-                continue;
             }
-
-            match s.dumbo {
-                Task::Unknown => {
-                    unreachable!()
-                }
-                Task::Walk { to, mut time_left } => {
-                    time_left -= 1;
-                    if time_left == 0 {
-                        s.dumbo_position = to;
-                        s.dumbo = Task::Open;
-                    } else {
-                        s.dumbo = Task::Walk { to, time_left };
-                    }
-                }
-                Task::Open => {
-                    s.nodes_open |= 1 << s.dumbo_position;
-                    s.pressure_being_released += ctx.flow_rates[&s.dumbo_position];
-                    s.dumbo = Task::Unknown;
-                }
-                Task::Fin => {}
-            }
-
-            //copy pasta
-            match s.me {
-                Task::Unknown => {
-                    unreachable!()
-                }
-                Task::Walk { to, mut time_left } => {
-                    time_left -= 1;
-                    if time_left == 0 {
-                        s.me_position = to;
-                        s.me = Task::Open;
-                    } else {
-                        s.me = Task::Walk { to, time_left };
-                    }
-                }
-                Task::Open => {
-                    s.nodes_open |= 1 << s.me_position;
-                    s.pressure_being_released += ctx.flow_rates[&s.me_position];
-                    s.me = Task::Unknown;
-                }
-                Task::Fin => {}
-            }
-
-            match (s.me, s.dumbo) {
-                (Task::Unknown, Task::Unknown) => {
-                    //get all the combos of 2 potential places to go, and enqueue them all for processing.
-                    let potentials = flow_nodes & !s.nodes_open; //unneccesary performant way to find nodes left to visit?
-                    if potentials == 0 {
-                        s.me = Task::Fin;
-                        s.dumbo = Task::Fin;
-                        processed.push(Rc::new(s.clone()));
-                    }
-
-                    if BitIter::from(potentials).count() == 1 {
-                        //could go to me OR dumbo
-
-                        //first, to me
-                        s.dumbo = Task::Fin;
-
-                        let to = BitIter::from(potentials).next().unwrap() as u8;
-                        let time_left = ctx.distance_matrix[&s.me_position][&to];
-                        if time_left < s.time_remaining {
-                            s.me = Task::Walk { to, time_left };
-                        } else {
-                            s.me = Task::Fin;
-                        }
-
-                        processed.push(Rc::new(s.clone()));
-
-                        //then to dumbo. copy+paste. this code is so gross
-
-                        s.me = Task::Fin;
-                        let time_left = ctx.distance_matrix[&s.dumbo_position][&to];
-                        if time_left < s.time_remaining {
-                            s.dumbo = Task::Walk { to, time_left };
-                        } else {
-                            s.dumbo = Task::Fin;
-                        }
-
-                        processed.push(Rc::new(s.clone()));
-                    }
-
-                    for pair in BitIter::from(potentials).permutations(2) {
-                        //create work for both of us
-                        let (mine, theirs);
-                        unsafe {
-                            mine = *pair.get_unchecked(0) as u8;
-                            theirs = *pair.get_unchecked(1) as u8;
-                        }
-
-                        let me_time_left = ctx.distance_matrix[&s.me_position][&mine];
-                        if me_time_left < s.time_remaining {
-                            s.me = Task::Walk {
-                                to: mine,
-                                time_left: me_time_left,
-                            };
-                        } else {
-                            s.me = Task::Fin
-                        }
-
-                        let dumbo_time_left = ctx.distance_matrix[&s.dumbo_position][&theirs];
-                        if dumbo_time_left < s.time_remaining {
-                            s.dumbo = Task::Walk {
-                                to: theirs,
-                                time_left: dumbo_time_left,
-                            };
-                        } else {
-                            s.dumbo = Task::Fin
-                        }
-
-                        processed.push(Rc::new(s.clone()))
-                    }
-                }
-                (Task::Unknown, _) => {
-                    let mut potentials = flow_nodes & !s.nodes_open; // TODO: remove what dumbo is doing from potentials!
-
-                    match s.dumbo {
-                        Task::Walk { to, time_left: _ } => {
-                            potentials &= !(1 << to);
-                        }
-                        Task::Open => {
-                            potentials &= !(1 << s.dumbo_position);
-                        }
-                        _ => {}
-                    }
-
-                    if potentials == 0 {
-                        s.me = Task::Fin;
-                        processed.push(Rc::new(s.clone()));
-                    }
-
-                    for to_usize in BitIter::from(potentials) {
-                        let to = to_usize as u8;
-                        let time_left = ctx.distance_matrix[&s.me_position][&to];
-                        s.me = Task::Walk { to, time_left };
-                        processed.push(Rc::new(s.clone()))
-                    }
-                }
-                (_, Task::Unknown) => {
-                    let mut potentials = flow_nodes & !s.nodes_open; // TODO: remove what me is doing from potentials!
-                    match s.me {
-                        Task::Walk { to, time_left: _ } => {
-                            potentials &= !(1 << to);
-                        }
-                        Task::Open => {
-                            potentials &= !(1 << s.me_position);
-                        }
-                        _ => {}
-                    }
-
-                    if potentials == 0 {
-                        s.dumbo = Task::Fin;
-                        processed.push(Rc::new(s.clone()));
-                    }
-
-                    for to_usize in BitIter::from(potentials) {
-                        let to = to_usize as u8;
-
-                        let time_left = ctx.distance_matrix[&s.dumbo_position][&to];
-                        s.dumbo = Task::Walk { to, time_left };
-                        processed.push(Rc::new(s.clone()))
-                    }
-                }
-                _ => {
-                    processed.push(Rc::new(s.clone()));
-                }
-            }
+            continue;
         }
 
-        (frontier, processed) = (processed, frontier);
+        match s.dumbo {
+            Task::Unknown => {
+                unreachable!()
+            }
+            Task::Walk { to, mut time_left } => {
+                time_left -= 1;
+                if time_left == 0 {
+                    s.dumbo_position = to;
+                    s.dumbo = Task::Open;
+                } else {
+                    s.dumbo = Task::Walk { to, time_left };
+                }
+            }
+            Task::Open => {
+                s.nodes_open |= 1 << s.dumbo_position;
+                s.pressure_being_released += ctx.flow_rates[&s.dumbo_position];
+                s.dumbo = Task::Unknown;
+            }
+            Task::Fin => {}
+        }
+
+        //copy pasta
+        match s.me {
+            Task::Unknown => {
+                unreachable!()
+            }
+            Task::Walk { to, mut time_left } => {
+                time_left -= 1;
+                if time_left == 0 {
+                    s.me_position = to;
+                    s.me = Task::Open;
+                } else {
+                    s.me = Task::Walk { to, time_left };
+                }
+            }
+            Task::Open => {
+                s.nodes_open |= 1 << s.me_position;
+                s.pressure_being_released += ctx.flow_rates[&s.me_position];
+                s.me = Task::Unknown;
+            }
+            Task::Fin => {}
+        }
+
+        match (s.me, s.dumbo) {
+            (Task::Unknown, Task::Unknown) => {
+                //get all the combos of 2 potential places to go, and enqueue them all for processing.
+                let potentials = flow_nodes & !s.nodes_open; //unneccesary performant way to find nodes left to visit?
+                if potentials == 0 {
+                    s.me = Task::Fin;
+                    s.dumbo = Task::Fin;
+                    frontier.push(Rc::new(s.clone()));
+                }
+
+                if BitIter::from(potentials).count() == 1 {
+                    //could go to me OR dumbo
+
+                    //first, to me
+                    s.dumbo = Task::Fin;
+
+                    let to = BitIter::from(potentials).next().unwrap() as u8;
+                    let time_left = ctx.distance_matrix[&s.me_position][&to];
+                    if time_left < s.time_remaining {
+                        s.me = Task::Walk { to, time_left };
+                    } else {
+                        s.me = Task::Fin;
+                    }
+
+                    frontier.push(Rc::new(s.clone()));
+
+                    //then to dumbo. copy+paste. this code is so gross
+
+                    s.me = Task::Fin;
+                    let time_left = ctx.distance_matrix[&s.dumbo_position][&to];
+                    if time_left < s.time_remaining {
+                        s.dumbo = Task::Walk { to, time_left };
+                    } else {
+                        s.dumbo = Task::Fin;
+                    }
+
+                    frontier.push(Rc::new(s.clone()));
+                }
+
+                for pair in BitIter::from(potentials).permutations(2) {
+                    //create work for both of us
+                    let (mine, theirs);
+                    unsafe {
+                        mine = *pair.get_unchecked(0) as u8;
+                        theirs = *pair.get_unchecked(1) as u8;
+                    }
+
+                    let me_time_left = ctx.distance_matrix[&s.me_position][&mine];
+                    if me_time_left < s.time_remaining {
+                        s.me = Task::Walk {
+                            to: mine,
+                            time_left: me_time_left,
+                        };
+                    } else {
+                        s.me = Task::Fin
+                    }
+
+                    let dumbo_time_left = ctx.distance_matrix[&s.dumbo_position][&theirs];
+                    if dumbo_time_left < s.time_remaining {
+                        s.dumbo = Task::Walk {
+                            to: theirs,
+                            time_left: dumbo_time_left,
+                        };
+                    } else {
+                        s.dumbo = Task::Fin
+                    }
+
+                    frontier.push(Rc::new(s.clone()))
+                }
+            }
+            (Task::Unknown, _) => {
+                let mut potentials = flow_nodes & !s.nodes_open; // TODO: remove what dumbo is doing from potentials!
+
+                match s.dumbo {
+                    Task::Walk { to, time_left: _ } => {
+                        potentials &= !(1 << to);
+                    }
+                    Task::Open => {
+                        potentials &= !(1 << s.dumbo_position);
+                    }
+                    _ => {}
+                }
+
+                if potentials == 0 {
+                    s.me = Task::Fin;
+                    frontier.push(Rc::new(s.clone()));
+                }
+
+                for to_usize in BitIter::from(potentials) {
+                    let to = to_usize as u8;
+                    let time_left = ctx.distance_matrix[&s.me_position][&to];
+                    s.me = Task::Walk { to, time_left };
+                    frontier.push(Rc::new(s.clone()))
+                }
+            }
+            (_, Task::Unknown) => {
+                let mut potentials = flow_nodes & !s.nodes_open; // TODO: remove what me is doing from potentials!
+                match s.me {
+                    Task::Walk { to, time_left: _ } => {
+                        potentials &= !(1 << to);
+                    }
+                    Task::Open => {
+                        potentials &= !(1 << s.me_position);
+                    }
+                    _ => {}
+                }
+
+                if potentials == 0 {
+                    s.dumbo = Task::Fin;
+                    frontier.push(Rc::new(s.clone()));
+                }
+
+                for to_usize in BitIter::from(potentials) {
+                    let to = to_usize as u8;
+
+                    let time_left = ctx.distance_matrix[&s.dumbo_position][&to];
+                    s.dumbo = Task::Walk { to, time_left };
+                    frontier.push(Rc::new(s.clone()))
+                }
+            }
+            _ => {
+                frontier.push(Rc::new(s.clone()));
+            }
+        }
     }
 
     (done).sort_by(|a, b| b.pressure_released_so_far.cmp(&a.pressure_released_so_far));
@@ -348,8 +368,8 @@ fn load(fname: &str) -> Context {
 
     let mut interner = StringInterner::default();
 
-    let mut input_map: HashMap<u8, Vec<u8>> = HashMap::new();
-    let mut nonzero_flow_rates: HashMap<u8, u16> = HashMap::new(); //from id to flow rate
+    let mut input_map: HashMap<u8, Vec<u8>> = HashMap::default();
+    let mut nonzero_flow_rates: HashMap<u8, u16> = HashMap::default(); //from id to flow rate
 
     for v in res {
         let id = interner.get_index(&v.0);
@@ -366,11 +386,11 @@ fn load(fname: &str) -> Context {
     let successors = |&n: &u8| -> Vec<(u8, u8)> { input_map[&n].iter().map(|f| (*f, 1)).collect() };
 
     //id of valve to a map of the other non-zero valves and the cost to get there.
-    let mut valve_distances: HashMap<u8, HashMap<u8, u8>> = HashMap::new();
+    let mut valve_distances: HashMap<u8, HashMap<u8, u8>> = HashMap::default();
 
     for starting in nonzero_flow_rates.keys() {
         let distances = dijkstra_all(starting, successors);
-        valve_distances.insert(*starting, HashMap::new());
+        valve_distances.insert(*starting, HashMap::default());
 
         for id in nonzero_flow_rates.keys() {
             if id == starting {
