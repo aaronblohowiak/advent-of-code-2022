@@ -71,55 +71,45 @@ fn part2(lava_points: &HashSet<Point3d>) -> i32 {
     let mut mins = Point3d::default();
 
     lava_points.iter().for_each(|p| {
-        maxes.x = maxes.x.max(p.x);
-        maxes.y = maxes.y.max(p.y);
-        maxes.z = maxes.z.max(p.z);
+        maxes.x = maxes.x.max(p.x + 1); //bounding box should SORROUND lava with steam, so extend 1 more
+        maxes.y = maxes.y.max(p.y + 1);
+        maxes.z = maxes.z.max(p.z + 1);
 
-        mins.x = mins.x.min(p.x);
-        mins.y = mins.y.min(p.y);
-        mins.z = mins.z.min(p.z);
+        mins.x = mins.x.min(p.x - 1); //bounding box should SORROUND lava with steam, so pull back 1
+        mins.y = mins.y.min(p.y - 1);
+        mins.z = mins.z.min(p.z - 1);
     });
 
-    maxes = &maxes + &Point3d{x:1, y:1, z:1};
-    mins = &mins + &Point3d{x:-1, y:-1, z:-1};
-
     let mut steam_box: HashSet<Point3d> = HashSet::default();
-
-    fn steam_fill(
-        steam_box: &mut HashSet<Point3d>,
-        lava_points: &HashSet<Point3d>,
-        from: &Point3d,
-        maxes: &Point3d,
-        mins: &Point3d,
-    ) {
-        steam_box.insert(*from);
-
-        for dir in DIRECTIONS {
-            let next = from + &dir;
-
-            if contained3d(&next, maxes, mins)
-                && !lava_points.contains(&next)
-                && !steam_box.contains(&next)
-            {
-                steam_fill(steam_box, lava_points, &next, maxes, mins);
-            }
-        }
-    }
 
     steam_fill(&mut steam_box, lava_points, &maxes, &maxes, &mins);
 
     lava_points
         .iter()
-        .map(|p| {
-            DIRECTIONS
-                .iter()
-                .map(|d| {
-                    let n = &(p + d);
-                    steam_box.contains(n) as i32
-                })
-                .sum::<i32>()
-        })
-        .sum()
+        .cartesian_product(DIRECTIONS.iter())
+        .filter(|(p, d)| steam_box.contains(&(*p + *d)))
+        .count() as i32
+}
+
+fn steam_fill(
+    steam_box: &mut HashSet<Point3d>,
+    lava_points: &HashSet<Point3d>,
+    from: &Point3d,
+    maxes: &Point3d,
+    mins: &Point3d,
+) {
+    steam_box.insert(*from);
+
+    for dir in DIRECTIONS {
+        let next = from + &dir;
+
+        if contained3d(&next, maxes, mins)
+            && !lava_points.contains(&next)
+            && !steam_box.contains(&next)
+        {
+            steam_fill(steam_box, lava_points, &next, maxes, mins);
+        }
+    }
 }
 
 fn contained3d(next: &Point3d, maxes: &Point3d, mins: &Point3d) -> bool {
