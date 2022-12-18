@@ -94,16 +94,6 @@ fn main() {
 
     let mut done: Vec<Rc<State>> = vec![];
 
-    for s in frontier.iter() {
-        match s.me {
-            Task::Walk { to, time_left } => {
-                print!("to: {:?} ", to)
-            }
-            _ => {}
-        }
-    }
-    println!();
-
     let _prev = SystemTime::now();
     for i in 0..26 {
         println!("Time: {}", i);
@@ -203,7 +193,7 @@ fn main() {
 
                     for pair in BitIter::from(potentials).permutations(2) {
                         //create work for both of us
-                        let (mut mine, mut theirs);
+                        let (mine, theirs);
                         unsafe {
                             mine = *pair.get_unchecked(0) as u8;
                             theirs = *pair.get_unchecked(1) as u8;
@@ -236,7 +226,7 @@ fn main() {
                     let mut potentials = flow_nodes & !s.nodes_open; // TODO: remove what dumbo is doing from potentials!
 
                     match s.dumbo {
-                        Task::Walk { to, time_left } => {
+                        Task::Walk { to, time_left: _ } => {
                             potentials &= !(1 << to);
                         }
                         Task::Open => {
@@ -260,7 +250,7 @@ fn main() {
                 (_, Task::Unknown) => {
                     let mut potentials = flow_nodes & !s.nodes_open; // TODO: remove what me is doing from potentials!
                     match s.me {
-                        Task::Walk { to, time_left } => {
+                        Task::Walk { to, time_left: _ } => {
                             potentials &= !(1 << to);
                         }
                         Task::Open => {
@@ -293,11 +283,11 @@ fn main() {
 
     (done).sort_by(|a, b| b.pressure_released_so_far.cmp(&a.pressure_released_so_far));
 
-    let top = (&done).iter().next().unwrap();
+    let top = done.first().unwrap();
 
     fn display(state: &State, ctx: &Context) {
         if let Some(prev) = &state.prev {
-            display(&prev, &ctx);
+            display(prev, ctx);
         }
 
         let open_valves: Vec<String> = BitIter::from(state.nodes_open)
@@ -345,7 +335,7 @@ fn main() {
         println!("\n");
     }
 
-    display(&top, &ctx);
+    display(top, &ctx);
 
     println!("top: {:?} ", top)
 }
