@@ -17,8 +17,8 @@ fn main() -> Result<()> {
     // assert_eq!(chamber_space_to_screen_space(0, 4), chamber_space_to_screen_space(1, 4) );
 
     let mut stdout = stdout();
-    execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
-    execute!(stdout, EnterAlternateScreen)?;
+    // execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
+    // execute!(stdout, EnterAlternateScreen)?;
 
     let mut chamber = Chamber::default();
 
@@ -26,14 +26,25 @@ fn main() -> Result<()> {
 
     let input_str = std::fs::read_to_string("./17.input").expect("file should be present");
 
-    let mut input_cycle = input_str.chars().enumerate().cycle();
+    let mut input_cycle = input_str.chars().enumerate().cycle().peekable();
     let mut shapes_cycle = shapes.iter().enumerate().cycle();
 
-    for i in 0..2022 {
+    let mut last_rocks = 0;
+    let mut last_height = 0;
+
+    let mut part_1 = 0;
+
+    let mut cycle_history: Vec<(usize, usize, usize)> = vec![];
+
+    for i in 0..10000 {
         //appear!
         let shape_pair = shapes_cycle.next().unwrap();
         let mut shape = shape_pair.1.clone();
         let mut distance_from_top = -3;
+
+        if i == 2022 {
+            println!("Part 1: {}", chamber.len());
+        }
 
         loop {
             print_chamber_top(&chamber, Some(&shape), distance_from_top, i)?;
@@ -42,6 +53,15 @@ fn main() -> Result<()> {
             let (input_idx, input) = input_cycle
                 .next()
                 .expect("endless cycle of input should be endless");
+
+            if input_idx == 0 {
+                println!("{}. Rocks Added: {}, Grew Height: {}", i, i - last_rocks, chamber.len() - last_height);
+            
+                cycle_history.push((i, i - last_rocks, chamber.len() - last_height));
+
+                last_rocks = i;
+                last_height = chamber.len();
+            }
 
             match input {
                 '<' => {
@@ -201,6 +221,7 @@ fn print_chamber_top(
     distance_from_top: isize,
     rock_idx: usize,
 ) -> Result<()> {
+    return Ok(());
     let mut stdout = stdout();
     execute!(stdout, terminal::Clear(terminal::ClearType::All))?;
 
