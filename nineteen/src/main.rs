@@ -23,7 +23,6 @@ goals for today: elegant code, use rayon to parallelize, correct answer, done by
                 adjust production
             hit time limit
                 return total geodes captured
-
 */
 
 #[derive(Default, Clone, Copy, Debug)]
@@ -92,10 +91,15 @@ impl Default for State<'_> {
 }
 
 impl<'a> State<'a> {
-    fn candidates(&'a self, blueprint: &'a Blueprint) -> impl Iterator<Item = State> + '_ {
+    fn candidates(
+        &'a self,
+        blueprint: &'a Blueprint,
+        max_time: isize,
+    ) -> impl Iterator<Item = State> + '_ {
         CandidateIterator {
             state: self,
             blueprint,
+            max_time,
             index: 0,
         }
     }
@@ -136,6 +140,7 @@ struct CandidateIterator<'a> {
     state: &'a State<'a>,
     blueprint: &'a Blueprint,
     index: usize,
+    max_time: isize,
 }
 
 impl<'a> Iterator for CandidateIterator<'a> {
@@ -172,11 +177,11 @@ impl<'a> Iterator for CandidateIterator<'a> {
                     )
                 })
             })
-            .filter(|(_, state)| state.minute <= 24)
+            .filter(|(_, state)| state.minute <= self.max_time as usize)
             .filter(|(_, state)| {
-                (state.production.ore <= self.blueprint.max_production.ore
+                state.production.ore <= self.blueprint.max_production.ore
                     && state.production.clay <= self.blueprint.max_production.clay
-                    && state.production.obsidian <= self.blueprint.max_production.obsidian)
+                    && state.production.obsidian <= self.blueprint.max_production.obsidian
             })
             .next()
         {
@@ -187,45 +192,42 @@ impl<'a> Iterator for CandidateIterator<'a> {
         self.index = self.blueprint.robots.len() + 1;
 
         Some(State {
-            minute: 24,
+            minute: self.max_time as usize,
             production: self.state.production,
             balance: self.state.balance
-                + (self.state.production * (24 - self.state.minute as isize)),
+                + (self.state.production * (self.max_time - self.state.minute as isize)),
             parent: Some(self.state),
         })
     }
 }
 
-fn most_geodes(state: &State, blueprint: &Blueprint, highest_geode_count: &mut usize) -> usize {
-    *highest_geode_count = state
-        .candidates(blueprint)
+fn most_geodes(state: &State, blueprint: &Blueprint, max_time: isize) -> usize {
+    state
+        .candidates(blueprint, max_time)
+        .collect::<Vec<State>>()
+        .par_iter()
         .map(|s| {
-            if s.minute == 24 {
+            if s.minute == max_time as usize {
                 s.balance.geode as usize
             } else {
-                most_geodes(&s, blueprint, highest_geode_count)
+                most_geodes(&s, blueprint, max_time)
             }
         })
         .max()
         .expect("should have some amount even if zero from burning remaining time")
-        .max(*highest_geode_count);
-
-    *highest_geode_count
 }
 
-fn highest_quality_score(blueprint: &Blueprint) -> usize {
-    let mut highest_geode_count = 0;
-
+fn highest_geode_count(blueprint: &Blueprint, max_time: isize) -> usize {
     let initial = State::default();
 
-    most_geodes(&initial, blueprint, &mut highest_geode_count);
+    let highest_geode_count = most_geodes(&initial, blueprint, max_time);
 
     println!(
         "Heighest geodes {} for blueprint {}",
         highest_geode_count, blueprint.id
     );
 
-    highest_geode_count * blueprint.id
+    highest_geode_count
 }
 
 fn parse_blueprint(input: &str) -> Blueprint {
@@ -245,6 +247,7 @@ fn parse_blueprint(input: &str) -> Blueprint {
 }
 
 use rayon::prelude::*;
+
 fn part1(path: &str) -> usize {
     std::fs::read_to_string(path)
         .expect("open input file")
@@ -252,12 +255,26 @@ fn part1(path: &str) -> usize {
         .map(parse_blueprint)
         .collect::<Vec<Blueprint>>()
         .par_iter()
-        .map(highest_quality_score)
+        .map(|bp| bp.id * highest_geode_count(bp, 24))
         .sum()
 }
 
+fn part2(path: &str) -> usize {
+    std::fs::read_to_string(path)
+        .expect("open input file")
+        .lines()
+        .take(3)
+        .map(parse_blueprint)
+        .collect::<Vec<Blueprint>>()
+        .par_iter()
+        .map(|bp| highest_geode_count(bp, 32))
+        .product()
+}
+
 fn main() {
-    println!("Part 1: {}", part1("./19.input"));
+    // println!("Part 1: {}", part1("./19.input"));
+
+    println!("Part 2: {}", part2("./19.input"));
 }
 
 peg::parser! {

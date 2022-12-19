@@ -11,3 +11,8 @@ itertools = "0.10.5"
 num = "0.4.0"
 peg = "0.8.1"
 rayon = "1.6.1"
+
+
+[profile.release]
+debug = true
+
