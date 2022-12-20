@@ -1,0 +1,19 @@
+[package]
+name = "nineteen"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+derive_more = "0.99.17"
+itertools = "0.10.5"
+num = "0.4.0"
+peg = "0.8.1"
+rayon = "1.6.1"
+rustc-hash = "1.1.0"
+
+
+[profile.release]
+debug = true
+
