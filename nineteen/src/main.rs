@@ -39,7 +39,7 @@ pub struct RobotSpec {
 }
 
 use derive_more::{Add, Sub};
-#[derive(Default, Clone, Copy, Add, Sub, Debug)]
+#[derive(Default, Clone, Copy, Add, Sub, Debug, Hash, Eq, PartialEq)]
 pub struct ResourceList {
     ore: isize,
     clay: isize,
@@ -201,8 +201,26 @@ impl<'a> Iterator for CandidateIterator<'a> {
     }
 }
 
-fn most_geodes(state: &State, blueprint: &Blueprint, max_time: isize) -> usize {
-    state
+type SafeHash = Arc<Mutex<FxHashMap<(usize, ResourceList, ResourceList), usize>>>;
+
+fn most_geodes(state: &State, blueprint: &Blueprint, max_time: isize, cache: SafeHash) -> usize {
+    let balance_key = ResourceList{
+        ore: blueprint.max_production.ore.min(state.balance.ore),
+        clay: blueprint.max_production.clay.min(state.balance.clay),
+        obsidian: blueprint.max_production.obsidian.min(state.balance.obsidian),
+        geode: blueprint.max_production.geode.min(state.balance.geode),
+    };
+
+    let key = (state.minute, state.production, balance_key);
+
+    {
+        let mut c = cache.lock().unwrap();
+        if let Some(res) = c.get(&key) {
+            return *res
+        }
+    }
+
+    let best = state
         .candidates(blueprint, max_time)
         .collect::<Vec<State>>()
         .par_iter()
@@ -210,17 +228,35 @@ fn most_geodes(state: &State, blueprint: &Blueprint, max_time: isize) -> usize {
             if s.minute == max_time as usize {
                 s.balance.geode as usize
             } else {
-                most_geodes(&s, blueprint, max_time)
+                most_geodes(&s, blueprint, max_time, cache.clone())
             }
         })
         .max()
-        .expect("should have some amount even if zero from burning remaining time")
+        .expect("should have some amount even if zero from burning remaining time");
+
+    {
+        let mut c = cache.lock().unwrap();
+        c.insert(key, best);
+        return best;
+    }
 }
+
+use rustc_hash::FxHashMap;
+use std::sync::Arc;
+use std::sync::Mutex;
 
 fn highest_geode_count(blueprint: &Blueprint, max_time: isize) -> usize {
     let initial = State::default();
 
-    let highest_geode_count = most_geodes(&initial, blueprint, max_time);
+
+    let mut cache : FxHashMap<(usize, ResourceList, ResourceList), usize> = FxHashMap::default();
+    let mtx = Arc::new(Mutex::new(cache));
+
+    let highest_geode_count = most_geodes(&initial, blueprint, max_time, mtx);
+
+
+
+
 
     println!(
         "Heighest geodes {} for blueprint {}",
@@ -273,7 +309,7 @@ fn part2(path: &str) -> usize {
 
 fn main() {
     println!("Part 1: {}", part1("./19.input"));
-    println!("Part 2: {}", part2("./19.input"));
+    println!("Part 2: {}", part2("./19.test"));
 }
 
 peg::parser! {
