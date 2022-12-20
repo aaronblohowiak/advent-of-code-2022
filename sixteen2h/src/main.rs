@@ -193,7 +193,7 @@ fn process_step (input: &mut State, ctx: &Context, flow_nodes : u64) -> SearchRe
                 }
             }
             (Task::Unknown, _) => {
-                let mut potentials = flow_nodes & !s.nodes_open; // TODO: remove what dumbo is doing from potentials!
+                let mut potentials = flow_nodes & !s.nodes_open;
 
                 match s.dumbo {
                     Task::Walk { to, time_left: _ } => {
@@ -218,7 +218,7 @@ fn process_step (input: &mut State, ctx: &Context, flow_nodes : u64) -> SearchRe
                 }
             }
             (_, Task::Unknown) => {
-                let mut potentials = flow_nodes & !s.nodes_open; // TODO: remove what me is doing from potentials!
+                let mut potentials = flow_nodes & !s.nodes_open;
                 match s.me {
                     Task::Walk { to, time_left: _ } => {
                         potentials &= !(1 << to);
