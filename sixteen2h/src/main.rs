@@ -11,14 +11,13 @@
 */
 
 use bit_iter::BitIter;
-use std::{ hash::Hash, rc::Rc}; 
+use std::{ hash::Hash}; 
 
 use rustc_hash::FxHashMap as HashMap;
 use itertools::Itertools;
 use pathfinding::prelude::dijkstra_all;
-use std::time::SystemTime;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq, Default)]
 struct State {
     nodes_open: u64,
     time_remaining: u8,
@@ -30,11 +29,12 @@ struct State {
     dumbo: Task
 }
 
-#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, Hash, PartialEq, Default)]
 enum Task {
     Open,
     Walk { to: u8, time_left: u8 },
     Fin,
+    #[default]
     Unknown, //waiting for work. intermediary value should never be seen when not being processed. maybe i should make task an Option<Task> rather than the sentinal value..
 }
 
@@ -63,71 +63,20 @@ struct Context {
     flow_rates: HashMap<u8, u16>,
 }
 
-struct SearchResult<T> {
-    Done: T,
-    ToExplore: Vec<T>
+enum SearchResult<T> {
+    Done(T),
+    ToExplore(Vec<T>)
 }
 
-// fn process_step () -> SearchResult<State> {
-
-// }
-
-fn main() {
-    let ctx = load("./16.input");
-
-    let mut flow_nodes_m: u64 = 0;
-    for id in ctx.flow_rates.keys() {
-        flow_nodes_m |= 1 << id;
-    }
-
-    let flow_nodes = flow_nodes_m;
-
-    let starting_position = ctx.interner.s_to_i["AA"];
-
-    let mut frontier: &mut Vec<State> = &mut ctx
-        .starting_moves
-        .iter()
-        .combinations(2)
-        .map(|mut combo| {
-            combo.sort_by(|a, b| b.0.cmp(&a.0));
-
-            State {
-                nodes_open: 0,
-                time_remaining: 26,
-                pressure_being_released: 0,
-                pressure_released_so_far: 0,
-                me_position: starting_position,
-                me: Task::Walk {
-                    to: combo[0].0,
-                    time_left: combo[0].1,
-                },
-                dumbo_position: starting_position,
-                dumbo: Task::Walk {
-                    to: combo[1].0,
-                    time_left: combo[1].1,
-                },
-            }
-        })
-        .collect();
-
-    let mut done: Vec<State> = vec![];
-
-    let mut counter: usize = 0;
-
-    while let Some(prev) = frontier.pop() {
-        counter += 1;
-        if counter % 10000000 == 0 {
-            println!("steps evaluated: {}   queue depth: {}   ", counter, frontier.len())
-        }
- 
-        let mut s = prev;
+fn process_step (input: &mut State, ctx: &Context, flow_nodes : u64) -> SearchResult<State> {
+        let mut s = *input;
+        let mut frontier : Vec<State> = Vec::with_capacity(8);
 
         s.pressure_released_so_far += s.pressure_being_released;
         s.time_remaining -= 1;
 
         if s.time_remaining == 0 {
-            done.push(s);
-            continue;
+            return SearchResult::Done(s);
         }
 
         match s.dumbo {
@@ -296,12 +245,76 @@ fn main() {
             _ => {
                 frontier.push(s);
             }
+    }
+
+    SearchResult::ToExplore(frontier)
+}
+
+
+fn process_many_steps(input: &mut State, ctx: &Context, flow_nodes : u64) -> State {
+    let mut top = * input;
+    let mut frontier = vec![*input];
+
+    while let Some(mut s) = frontier.pop()  {
+        let result = process_step(&mut s, ctx, flow_nodes);
+        match result {
+            SearchResult::Done(complete) =>{
+                if complete.pressure_released_so_far > top.pressure_released_so_far {
+                    top = complete;
+                }
+            },
+            SearchResult::ToExplore(more) => {
+                frontier.extend(more);
+            }
         }
     }
 
-    (done).sort_by(|a, b| b.pressure_released_so_far.cmp(&a.pressure_released_so_far));
+    top
+}
 
-    let top = done.first().unwrap();
+use rayon::prelude::*;
+
+fn main() {
+    let ctx = load("./16.input");
+
+    let mut flow_nodes_m: u64 = 0;
+    for id in ctx.flow_rates.keys() {
+        flow_nodes_m |= 1 << id;
+    }
+
+    let flow_nodes = flow_nodes_m;
+
+    let starting_position = ctx.interner.s_to_i["AA"];
+
+    let frontier: &mut Vec<State> = &mut ctx
+        .starting_moves
+        .iter()
+        .combinations(2)
+        .map(|mut combo| {
+            combo.sort_by(|a, b| b.0.cmp(&a.0));
+
+            State {
+                nodes_open: 0,
+                time_remaining: 26,
+                pressure_being_released: 0,
+                pressure_released_so_far: 0,
+                me_position: starting_position,
+                me: Task::Walk {
+                    to: combo[0].0,
+                    time_left: combo[0].1,
+                },
+                dumbo_position: starting_position,
+                dumbo: Task::Walk {
+                    to: combo[1].0,
+                    time_left: combo[1].1,
+                },
+            }
+        })
+        .collect();
+
+    let top = frontier.par_iter_mut().map(|s| 
+        process_many_steps(s, &ctx, flow_nodes)
+    ).max_by(|a, b| a.pressure_released_so_far.cmp(&b.pressure_released_so_far)).unwrap();
 
     fn display(state: &State, ctx: &Context) {
         let open_valves: Vec<String> = BitIter::from(state.nodes_open)
@@ -349,7 +362,7 @@ fn main() {
         println!("\n");
     }
 
-    display(top, &ctx);
+    display(&top, &ctx);
 
     println!("top: {:?} ", top)
 }
