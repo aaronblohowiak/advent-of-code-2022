@@ -18,7 +18,7 @@ use itertools::Itertools;
 use pathfinding::prelude::dijkstra_all;
 use std::time::SystemTime;
 
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 struct State {
     nodes_open: u64,
     time_remaining: u8,
@@ -27,8 +27,7 @@ struct State {
     me_position: u8, //need a me me_position and a dumbo me_position
     me: Task,
     dumbo_position: u8,
-    dumbo: Task,
-    prev: Option<Rc<State>>,
+    dumbo: Task
 }
 
 #[derive(Debug, Copy, Clone, Eq, Hash, PartialEq)]
@@ -36,7 +35,7 @@ enum Task {
     Open,
     Walk { to: u8, time_left: u8 },
     Fin,
-    Unknown, //waiting for work. intermediary value should never be seen when not being processed. maybe i should make task an Option<> rather than the sentinal value..
+    Unknown, //waiting for work. intermediary value should never be seen when not being processed. maybe i should make task an Option<Task> rather than the sentinal value..
 }
 
 #[derive(Default)]
@@ -64,6 +63,15 @@ struct Context {
     flow_rates: HashMap<u8, u16>,
 }
 
+struct SearchResult<T> {
+    Done: T,
+    ToExplore: Vec<T>
+}
+
+// fn process_step () -> SearchResult<State> {
+
+// }
+
 fn main() {
     let ctx = load("./16.input");
 
@@ -76,14 +84,14 @@ fn main() {
 
     let starting_position = ctx.interner.s_to_i["AA"];
 
-    let mut frontier: &mut Vec<Rc<State>> = &mut ctx
+    let mut frontier: &mut Vec<State> = &mut ctx
         .starting_moves
         .iter()
         .combinations(2)
         .map(|mut combo| {
-            combo.sort_by(|a, b| b.0.cmp(&a.0)); //THIS CODE ONLY WORKS WHEN THIS IS SORTED THIS WAY. WHYYYYYYYYYY
+            combo.sort_by(|a, b| b.0.cmp(&a.0));
 
-            Rc::new(State {
+            State {
                 nodes_open: 0,
                 time_remaining: 26,
                 pressure_being_released: 0,
@@ -98,16 +106,11 @@ fn main() {
                     to: combo[1].0,
                     time_left: combo[1].1,
                 },
-                prev: None,
-            })
+            }
         })
         .collect();
 
-    let mut done: Vec<Rc<State>> = vec![];
-
-    let _prev = SystemTime::now();
-
-    let mut best = 0;
+    let mut done: Vec<State> = vec![];
 
     let mut counter: usize = 0;
 
@@ -117,18 +120,13 @@ fn main() {
             println!("steps evaluated: {}   queue depth: {}   ", counter, frontier.len())
         }
  
-        let mut s = (*prev).clone();
-        s.prev = Some(prev);
+        let mut s = prev;
 
         s.pressure_released_so_far += s.pressure_being_released;
         s.time_remaining -= 1;
 
         if s.time_remaining == 0 {
-            if s.pressure_released_so_far > best {
-                println!("{}", s.pressure_released_so_far);
-                best = s.pressure_released_so_far;
-                done.push(Rc::new(s.clone()));
-            }
+            done.push(s);
             continue;
         }
 
@@ -182,7 +180,7 @@ fn main() {
                 if potentials == 0 {
                     s.me = Task::Fin;
                     s.dumbo = Task::Fin;
-                    frontier.push(Rc::new(s.clone()));
+                    frontier.push(s);
                 }
 
                 if BitIter::from(potentials).count() == 1 {
@@ -199,7 +197,7 @@ fn main() {
                         s.me = Task::Fin;
                     }
 
-                    frontier.push(Rc::new(s.clone()));
+                    frontier.push(s);
 
                     //then to dumbo. copy+paste. this code is so gross
 
@@ -211,7 +209,7 @@ fn main() {
                         s.dumbo = Task::Fin;
                     }
 
-                    frontier.push(Rc::new(s.clone()));
+                    frontier.push(s);
                 }
 
                 for pair in BitIter::from(potentials).permutations(2) {
@@ -242,7 +240,7 @@ fn main() {
                         s.dumbo = Task::Fin
                     }
 
-                    frontier.push(Rc::new(s.clone()))
+                    frontier.push(s)
                 }
             }
             (Task::Unknown, _) => {
@@ -260,14 +258,14 @@ fn main() {
 
                 if potentials == 0 {
                     s.me = Task::Fin;
-                    frontier.push(Rc::new(s.clone()));
+                    frontier.push(s);
                 }
 
                 for to_usize in BitIter::from(potentials) {
                     let to = to_usize as u8;
                     let time_left = ctx.distance_matrix[&s.me_position][&to];
                     s.me = Task::Walk { to, time_left };
-                    frontier.push(Rc::new(s.clone()))
+                    frontier.push(s)
                 }
             }
             (_, Task::Unknown) => {
@@ -284,7 +282,7 @@ fn main() {
 
                 if potentials == 0 {
                     s.dumbo = Task::Fin;
-                    frontier.push(Rc::new(s.clone()));
+                    frontier.push(s);
                 }
 
                 for to_usize in BitIter::from(potentials) {
@@ -292,11 +290,11 @@ fn main() {
 
                     let time_left = ctx.distance_matrix[&s.dumbo_position][&to];
                     s.dumbo = Task::Walk { to, time_left };
-                    frontier.push(Rc::new(s.clone()))
+                    frontier.push(s)
                 }
             }
             _ => {
-                frontier.push(Rc::new(s.clone()));
+                frontier.push(s);
             }
         }
     }
@@ -306,10 +304,6 @@ fn main() {
     let top = done.first().unwrap();
 
     fn display(state: &State, ctx: &Context) {
-        if let Some(prev) = &state.prev {
-            display(prev, ctx);
-        }
-
         let open_valves: Vec<String> = BitIter::from(state.nodes_open)
             .map(|f| ctx.interner.i_to_s[&(f as u8)].to_owned())
             .collect();
