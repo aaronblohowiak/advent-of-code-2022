@@ -202,7 +202,6 @@ impl<'a> Iterator for CandidateIterator<'a> {
 }
 
 type SafeHash = Arc<Mutex<FxHashMap<(usize, ResourceList, ResourceList), usize>>>;
-
 fn most_geodes(state: &State, blueprint: &Blueprint, max_time: isize, cache: SafeHash) -> usize {
     let balance_key = ResourceList{
         ore: blueprint.max_production.ore.min(state.balance.ore),
@@ -253,10 +252,6 @@ fn highest_geode_count(blueprint: &Blueprint, max_time: isize) -> usize {
     let mtx = Arc::new(Mutex::new(cache));
 
     let highest_geode_count = most_geodes(&initial, blueprint, max_time, mtx);
-
-
-
-
 
     println!(
         "Heighest geodes {} for blueprint {}",
@@ -309,7 +304,7 @@ fn part2(path: &str) -> usize {
 
 fn main() {
     println!("Part 1: {}", part1("./19.input"));
-    println!("Part 2: {}", part2("./19.test"));
+    println!("Part 2: {}", part2("./19.input"));
 }
 
 peg::parser! {
