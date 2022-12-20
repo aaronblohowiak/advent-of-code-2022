@@ -16,7 +16,7 @@ goals for today: elegant code, use rayon to parallelize, correct answer, done by
             avoid over-production
             avoid if time to build exceeds time remaining
 
-        pick candidate as target // recurse. potentially cache by time, production, geode count
+        pick candidate as target // recurse.
         let time pass until:
             can afford to build
                 build candidate
@@ -272,8 +272,7 @@ fn part2(path: &str) -> usize {
 }
 
 fn main() {
-    // println!("Part 1: {}", part1("./19.input"));
-
+    println!("Part 1: {}", part1("./19.input"));
     println!("Part 2: {}", part2("./19.input"));
 }
 
@@ -322,50 +321,8 @@ mod test {
     fn test_input_file() {
         let bp = parse_blueprint("Blueprint 1: Each ore robot costs 4 ore. Each clay robot costs 2 ore. Each obsidian robot costs 3 ore and 14 clay. Each geode robot costs 2 ore and 7 obsidian.");
 
-        let mut highest;
+        let state = State::default();
+        assert_eq!(9, most_geodes(&state, &bp, 24));
 
-        // highest = 0;
-        // let state = State {
-        //     minute: 23,
-        //     production: ResourceList{ore: 1, clay: 4, obsidian: 2, geode: 2},
-        //     balance: ResourceList{ore: 5, clay: 37, obsidian: 6, geode: 7}
-        // };
-        // assert_eq!(9, most_geodes(&state, &bp,&mut highest));
-
-        // highest = 0;
-        // let state = State {
-        //     minute: 22,
-        //     production: ResourceList{ore: 1, clay: 4, obsidian: 2, geode: 2},
-        //     balance: ResourceList{ore: 4, clay: 33, obsidian: 4, geode: 5}
-        // };
-        // assert_eq!(9, most_geodes(&state, &bp,&mut highest));
-
-        highest = 0;
-        let state = State {
-            minute: 21,
-            production: ResourceList {
-                ore: 1,
-                clay: 4,
-                obsidian: 2,
-                geode: 2,
-            },
-            balance: ResourceList {
-                ore: 3,
-                clay: 29,
-                obsidian: 2,
-                geode: 3,
-            },
-            parent: None,
-        };
-        assert_eq!(9, most_geodes(&state, &bp, &mut highest));
-
-        // highest = 0;
-        // let state = State {
-        //     minute: 20,
-        //     production: ResourceList{ore: 1, clay: 4, obsidian: 2, geode: 1},
-        //     balance: ResourceList{ore: 4, clay: 25, obsidian: 7, geode: 2},
-        //     parent: None
-        // };
-        // assert_eq!(9, most_geodes(&state, &bp,&mut highest));
     }
 }
