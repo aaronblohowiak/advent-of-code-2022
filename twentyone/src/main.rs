@@ -45,10 +45,12 @@ fn resolve(id: usize, monkeys: &HashMap<usize, MonkeyNumber>) -> f64 {
     match monkey {
         MonkeyNumber::Constant(x) => *x,
         MonkeyNumber::Formulae(f) => {
-            let left = resolve(f.Lhs, monkeys);
-            let right = resolve(f.Rhs, monkeys);
+            let left = resolve(f.lhs, monkeys);
+            let right = resolve(f.rhs, monkeys);
 
-            let res = match f.Operator {
+            
+
+            match f.op {
                 '+' => left + right,
                 '*' => left * right,
                 '/' => left / right,
@@ -56,9 +58,7 @@ fn resolve(id: usize, monkeys: &HashMap<usize, MonkeyNumber>) -> f64 {
                 _ => {
                     unreachable!("only valid operators")
                 }
-            };
-
-            res
+            }
         }
     }
 }
@@ -70,15 +70,15 @@ fn parse_monkey(s: &str, interner: &mut StringInterner) -> (usize, MonkeyNumber)
         .map(|id_str| interner.get_index(id_str))
         .unwrap();
 
-    let mut brain = parts.next().unwrap();
+    let brain = parts.next().unwrap();
 
-    let mut number: MonkeyNumber;
+    let number: MonkeyNumber;
 
     if let Ok(val) = brain.parse() {
         number = MonkeyNumber::Constant(val);
     } else {
         let (left, op, right) = brain
-            .split(" ")
+            .split(' ')
             .tuples()
             .next()
             .expect("not a constant should be a formulae.");
@@ -86,13 +86,13 @@ fn parse_monkey(s: &str, interner: &mut StringInterner) -> (usize, MonkeyNumber)
         let (left, right) = (interner.get_index(left), interner.get_index(right));
 
         number = MonkeyNumber::Formulae(Formulae {
-            Lhs: left,
-            Operator: op,
-            Rhs: right,
+            lhs: left,
+            op,
+            rhs: right,
         });
     }
 
-    return (id, number);
+    (id, number)
 }
 
 #[derive(Debug)]
@@ -104,9 +104,9 @@ enum MonkeyNumber {
 #[derive(Debug)]
 
 struct Formulae {
-    Lhs: MonkeyId,
-    Operator: char,
-    Rhs: MonkeyId,
+    lhs: MonkeyId,
+    op: char,
+    rhs: MonkeyId,
 }
 
 #[derive(Debug)]
@@ -118,12 +118,4 @@ enum MonkeyRef {
 
 type MonkeyId = usize;
 
-use nom::{
-    branch::alt,
-    bytes::complete::tag,
-    character::complete::{alpha1, space1},
-    combinator::{map, opt, value},
-    multi::many1,
-    sequence::{delimited, preceded, terminated, tuple},
-    IResult,
-};
+
