@@ -1,8 +1,8 @@
 use itertools::Itertools;
 use std::{cmp::Ordering, collections::HashMap, fmt::Display, hash::Hash};
 
-use num::rational::Ratio;
 use num::bigint::BigInt;
+use num::rational::Ratio;
 use num::FromPrimitive;
 
 type Numeric = Ratio<isize>;
@@ -59,9 +59,8 @@ fn main() {
 
     let humn_id = id_interner.get_index("humn");
 
-
-    let mut stride : isize = 10;
-    let mut current : isize = 0;
+    let mut stride: isize = 10;
+    let mut current: isize = 0;
 
     let mut guess = attempt(&humn_id, &root_id, &mut monkeys, current);
 
@@ -84,23 +83,24 @@ fn main() {
             //try doubling stride
 
             let double_guess = attempt(&humn_id, &root_id, &mut monkeys, current + stride * 2);
-            if double_guess.err.signum() == guess.err.signum() && double_guess.err.abs() < guess.err.abs() {
+            if double_guess.err.signum() == guess.err.signum()
+                && double_guess.err.abs() < guess.err.abs()
+            {
                 stride *= 2;
                 guess = double_guess;
                 current += stride;
-            }else{
+            } else {
                 current += stride;
                 guess = next_guess;
             }
 
-            continue
+            continue;
         }
 
         //we know that the value is between current and stride.
         //just reset stride
         stride = stride.signum();
     }
-
 }
 
 #[derive(Copy, Clone)]
@@ -111,12 +111,7 @@ struct Check {
 
 impl Display for Check {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "Value: {}, Err: {}",
-            self.value.to_integer(),
-            self.err
-        )
+        write!(f, "Value: {}, Err: {}", self.value.to_integer(), self.err)
     }
 }
 
@@ -130,10 +125,10 @@ fn attempt(
     update_humn(humn_id, monkeys, guess);
 
     let result = resolve(root_id, &monkeys);
-    let err = *result.numer() as f64 / *result.denom() as f64; 
+    let err = *result.numer() as f64 / *result.denom() as f64;
     Check {
         value: guess,
-        err: err
+        err: err,
     }
 }
 
