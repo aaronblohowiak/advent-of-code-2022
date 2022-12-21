@@ -1,9 +1,9 @@
 use itertools::Itertools;
-use std::{cmp::Ordering, collections::HashMap, fmt::Display, hash::Hash};
+use std::{collections::HashMap, fmt::Display};
 
-use num::bigint::BigInt;
+
 use num::rational::Ratio;
-use num::FromPrimitive;
+
 
 type Numeric = Ratio<isize>;
 
@@ -30,7 +30,7 @@ fn main() {
 
     let mut monkeys: HashMap<usize, MonkeyNumber> = HashMap::default();
 
-    std::fs::read_to_string("./21.input")
+    std::fs::read_to_string("./21.test")
         .expect("read file")
         .lines()
         .map(|s| parse_monkey(s, &mut id_interner))
@@ -71,7 +71,7 @@ fn main() {
         stride *= -1;
     }
 
-    for i in 0..1000 {
+    for _i in 0..1000 {
         next_guess = attempt(&humn_id, &root_id, &mut monkeys, current + stride);
 
         if next_guess.err == 0.0 {
@@ -124,21 +124,21 @@ fn attempt(
     let guess = Ratio::from_integer(guess);
     update_humn(humn_id, monkeys, guess);
 
-    let result = resolve(root_id, &monkeys);
+    let result = resolve(root_id, monkeys);
     let err = *result.numer() as f64 / *result.denom() as f64;
     Check {
         value: guess,
-        err: err,
+        err,
     }
 }
 
 fn update_humn(humn_id: &usize, monkeys: &mut HashMap<usize, MonkeyNumber>, guess: Numeric) {
-    let mut humn = monkeys.get_mut(humn_id).unwrap();
+    let humn = monkeys.get_mut(humn_id).unwrap();
     *humn = MonkeyNumber::Constant(guess);
 }
 
 fn resolve(id: &usize, monkeys: &HashMap<usize, MonkeyNumber>) -> Numeric {
-    let monkey = monkeys.get(&id).unwrap();
+    let monkey = monkeys.get(id).unwrap();
 
     match monkey {
         MonkeyNumber::Constant(x) => *x,
@@ -203,13 +203,6 @@ struct Formulae {
     lhs: MonkeyId,
     op: char,
     rhs: MonkeyId,
-}
-
-#[derive(Debug)]
-
-enum MonkeyRef {
-    Unresolved(MonkeyId),
-    Resolved(Numeric),
 }
 
 type MonkeyId = usize;
