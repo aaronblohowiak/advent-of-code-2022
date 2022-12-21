@@ -8,3 +8,4 @@ edition = "2021"
 [dependencies]
 itertools = "0.10.5"
 nom = "7.1.1"
+num = "0.4.0"
